@@ -85,6 +85,51 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 }
 .loc-name { font-size: 12px; font-weight: 600; }
 .loc-who { font-size: 11px; color: var(--muted); }
+
+/* scene bits layered onto each location card */
+.loc-move {
+  font-size: 10px;
+  color: var(--library);
+  margin-top: 3px;
+  line-height: 1.3;
+}
+.loc-bubble {
+  font-size: 11px;
+  background: rgba(76, 214, 164, 0.08);
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  padding: 3px 7px;
+  margin-top: 3px;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.loc-bubble b { color: var(--accent-2); }
+
+/* director world_change tints the whole stage */
+.map.stage--world-change {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    radial-gradient(circle at 50% 40%, rgba(124, 156, 255, 0.12), transparent 60%);
+}
+.map.stage--world-change::after {
+  content: "🎬 " attr(data-change);
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 3px 12px;
+  white-space: nowrap;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
 .loc-cafe    { border-top: 3px solid var(--cafe); }
 .loc-park    { border-top: 3px solid var(--park); }
 .loc-library { border-top: 3px solid var(--library); }

@@ -46,10 +46,15 @@ async function invokeWorld(args) {
     method: "world",
     args,
   });
-  if (!res?.success) {
-    throw new Error(res?.error || "invoke failed");
+  // Tolerate the runtime's return shapes: plugin envelope {success,data},
+  // call-API style {ok,result}, or a bare payload. Only treat an explicit
+  // falsy success/ok as failure.
+  const ok = res?.success ?? res?.ok ?? true;
+  const data = res?.data ?? res?.result ?? res;
+  if (!ok) {
+    throw new Error(res?.error || res?.message || "invoke failed");
   }
-  return res.data;
+  return data;
 }
 
 // ─── actions ────────────────────────────────────────────────────────
@@ -95,7 +100,9 @@ async function onTick(n) {
 async function refresh() {
   if (!anna) return;
   const r = await anna.storage.get({ key: WORLD_KEY });
-  const world = r?.exists ? r.value : null;
+  // Tolerate {exists,value} | {ok,result:{exists,value}} | bare payload.
+  const payload = r?.result ?? r;
+  const world = payload?.value ?? null;
   if (!world) return;
   $("clock").textContent = world.world_time;
   $("tick-meta").textContent = `tick ${world.current_tick}`;
@@ -103,9 +110,43 @@ async function refresh() {
   renderTimeline(world);
 }
 
+// ─── scene derivation (snapshot → recent moves / talks / world_change) ─
+// Pure functions: flatten the event list into per-location scene bits so the
+// map shows *motion* and *conversation*, not just static occupants. A move
+// event carries location_id (its destination); a talk event doesn't, so the
+// bubble anchors at the speaker's current_location_id (best effort).
+
+function deriveScene(world) {
+  const ev = [...(world.events || [])].reverse(); // newest first
+  return {
+    moves: ev.filter((e) => e.event_type === "move").slice(0, 4),
+    talks: ev.filter((e) => e.event_type === "talk").slice(0, 3),
+    worldChange: ev.find((e) => e.event_type === "world_change"),
+  };
+}
+
+function agentName(world, id) {
+  return world.agents?.[id]?.name || id || "?";
+}
+
 function renderMap(world) {
   const map = $("map");
   map.innerHTML = "";
+  const { moves, talks, worldChange } = deriveScene(world);
+  const movesAt = {};
+  for (const m of moves) (movesAt[m.location_id] ||= []).push(m);
+  const talksAt = {};
+  for (const t of talks) {
+    const lid = world.agents?.[t.actor_agent_id]?.current_location_id;
+    if (lid) (talksAt[lid] ||= []).push(t);
+  }
+
+  // A director world_change tints the whole stage so the user feels the
+  // director's hand (storm / blackout / festival ...).
+  const changeText = worldChange?.description || worldChange?.reason || "";
+  map.classList.toggle("stage--world-change", !!worldChange);
+  map.dataset.change = changeText;
+
   for (const loc of Object.values(world.locations)) {
     const node = document.createElement("div");
     node.className = `loc loc-${loc.type}`;
@@ -114,8 +155,27 @@ function renderMap(world) {
     const occupants = (loc.occupants || [])
       .map((id) => world.agents[id]?.name || id)
       .join(", ");
-    node.innerHTML = `<span class="loc-name">${loc.name}</span>` +
-      `<span class="loc-who">${occupants || "—"}</span>`;
+    const moveBits = (movesAt[loc.id] || [])
+      .map(
+        (m) =>
+          `<div class="loc-move">→ ${escapeHtml(agentName(world, m.actor_agent_id))}` +
+          (m.description ? ` · ${escapeHtml(m.description)}` : "") +
+          `</div>`,
+      )
+      .join("");
+    const talkBubbles = (talksAt[loc.id] || [])
+      .map(
+        (t) =>
+          `<div class="loc-bubble"><b>${escapeHtml(agentName(world, t.actor_agent_id))}</b>` +
+          (t.description ? `: ${escapeHtml(t.description)}` : "") +
+          `</div>`,
+      )
+      .join("");
+    node.innerHTML =
+      `<span class="loc-name">${escapeHtml(loc.name)}</span>` +
+      `<span class="loc-who">${occupants ? escapeHtml(occupants) : "—"}</span>` +
+      moveBits +
+      talkBubbles;
     map.appendChild(node);
   }
 }
