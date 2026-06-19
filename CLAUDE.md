@@ -110,6 +110,7 @@ uv sync                                              # 安装依赖（executa-sd
 uv run pytest -q                                     # 测试
 uv run ruff format . && uv run ruff check .          # 格式化 + lint
 uv run truman-director                               # 启动 stdio 插件（stderr 打印 "ready"）
+pnpm exec anna-app dev --executa dir=.               # dev harness（dashboard http://localhost:5180）；非交互 shell 必须 `pnpm exec`（`anna-app` 不在 PATH，直接跑 exit 127）；5180 被占先杀旧进程树（node + uvx anna-app-bridge + python bridge）
 uv run pre-commit install --hook-type commit-msg     # 安装 commit-msg 钩子（默认不装）
 python scripts/set-tool-id.py apply --tool <minted>  # 铸造 tool_id 后批量改写三处（幂等）
 ```
