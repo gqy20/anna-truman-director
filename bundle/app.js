@@ -54,12 +54,13 @@ async function boot() {
 
   try {
     anna = await AnnaAppRuntime.connect();
+    enableChat(true);
     await hydrate();
     if (world) {
       enableTick(true);
       setStatus(`Town reloaded — tick ${world.current_tick}.`, "ok");
     } else {
-      setStatus("Connected. Press “Start town”.", "ok");
+      setStatus("Connected. 和 Anna 说“开个小镇”,或按 Start town。", "ok");
     }
   } catch (err) {
     setStatus(`Runtime unavailable: ${err.message || err}`, "err");
@@ -163,13 +164,13 @@ function appendChat(role, text) {
 }
 
 async function sendToDirector(text) {
-  if (!anna || !world) return;
+  if (!anna) return; // world may be null — the director can create it via {op:"init"}
   appendChat("user", text);
   setStatus("Anna 正在想……", "info");
   const annaMsg = appendChat("anna", "");
   annaMsg.classList.add("streaming");
   try {
-    const result = await directorDecide(anna, snapshot(world), chatHistory, text);
+    const result = await directorDecide(anna, world ? snapshot(world) : null, chatHistory, text);
     annaMsg.classList.remove("streaming");
     annaMsg.textContent = result.narrative || "(…)";
     chatHistory.push(
@@ -180,9 +181,14 @@ async function sendToDirector(text) {
     // Execute actions through the deterministic tick() path. Cap tick N — each
     // tick = one decide() LLM call, big jumps hit the 10 req/min quota + lag.
     for (const act of result.actions) {
-      if (act.op === "tick" && act.n) {
+      if (act.op === "init" && !world) {
+        world = cafeTown();
+        seedOccupants(world);
+        await anna.storage.set({ key: WORLD_KEY, value: snapshot(world) });
+        enableTick(true); // world is now live — enable the tick/inject buttons
+      } else if (act.op === "tick" && act.n && world) {
         await tick(anna, world, Math.min(Math.max(1, act.n), 8));
-      } else if (act.op === "inject" && act.reason) {
+      } else if (act.op === "inject" && act.reason && world) {
         applyInjectEvent(world, { reason: act.reason });
         await tick(anna, world, 1); // consume the injection this tick
       }
@@ -315,10 +321,13 @@ function renderTimeline(world) {
 }
 
 function enableTick(on) {
-  // Tick, inject, and director chat all require a live in-memory world.
+  // Tick + inject need a live world. Director chat doesn't — it can create one.
   $("btn-tick").disabled = !on;
   $("btn-tick5").disabled = !on;
   $("btn-inject").disabled = !on;
+}
+
+function enableChat(on) {
   $("btn-chat-send").disabled = !on;
 }
 

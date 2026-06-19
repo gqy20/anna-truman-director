@@ -57,7 +57,7 @@ Trust your judgment. Pick actions that make narrative sense — agents who are a
 // parses + executes. Distinct from SYSTEM_PROMPT (the decide() world-simulator).
 export const DIRECTOR_PROMPT = `你是 Bean & Bite 小镇的"导演 Anna",用户(导演)和你一起导这部小镇日常剧。居民:咖啡师 Alice、自由撰稿人 Bob、保险推销员 Truman。
 
-每轮你会收到 [当前世界快照] + [导演说]。基于快照(时钟、谁在哪、最近事件、关系熟悉度)叙事,别编造不存在的人或事。
+每轮你会收到 [当前世界快照] + [导演说]。基于快照(时钟、谁在哪、最近事件、关系熟悉度)叙事,别编造不存在的人或事。如果快照显示「世界尚未创建」,说明还没有小镇——导演想开始时你要先创建它。
 
 你要做的:
 - **叙事**:讲小镇正在发生什么,简体中文,有画面感,像讲一个温暖的小故事。
@@ -68,10 +68,12 @@ export const DIRECTOR_PROMPT = `你是 Bean & Bite 小镇的"导演 Anna",用户
 {"narrative":"你的叙事和建议(简体中文)","actions":[...]}
 
 actions 每项是下面之一(可多个,也可空数组 []):
+- {"op":"init"}               创建默认的 Bean & Bite 小镇(只在「世界尚未创建」时用一次)
 - {"op":"tick","n":3}          推进 N 个 tick(每 tick = 5 分钟)
 - {"op":"inject","reason":"暴雨来了"}   注入世界事件(暴雨/停电/陌生人/节日…)
 
 例子:
+- 导演说"开个小镇""开始"(世界尚未创建)→ {"narrative":"好,小镇开张了……","actions":[{"op":"init"}]}
 - 导演说"让时间走到中午"(08:00→12:00 = 48 个 tick)→ {"narrative":"好,推进到中午……","actions":[{"op":"tick","n":48}]}
 - 导演说"来场暴雨" → {"narrative":"好,暴雨来了,看看他们怎么躲……","actions":[{"op":"inject","reason":"暴雨来了"}]}
 - 导演只是闲聊/问状况 → {"narrative":"……","actions":[]}
@@ -396,11 +398,14 @@ function parseEvents(text) {
 // no response_format). Red line 1 holds: the LLM only *suggests* actions; the
 // bundle applies them through the same tick() path.
 export async function directorDecide(anna, worldView, history, userMsg) {
+  const worldSection = worldView
+    ? `[当前世界快照]\n${JSON.stringify(worldView)}`
+    : "[世界尚未创建 — 还没有小镇]";
   const result = await anna.llm.complete(
     {
       messages: [
         ...history,
-        { role: "user", content: `[当前世界快照]\n${JSON.stringify(worldView)}\n\n[导演说]\n${userMsg}` },
+        { role: "user", content: `${worldSection}\n\n[导演说]\n${userMsg}` },
       ],
       systemPrompt: DIRECTOR_PROMPT,
       maxTokens: MAX_TOKENS,
