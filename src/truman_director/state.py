@@ -118,6 +118,15 @@ class WorldState:
                     "home_location_id": a.home_location_id,
                     "current_location_id": a.current_location_id,
                     "personality": a.personality,
+                    "relationships": {
+                        rid: {
+                            "familiarity": rel.familiarity,
+                            "trust": rel.trust,
+                            "affinity": rel.affinity,
+                            "last_interaction_tick": rel.last_interaction_tick,
+                        }
+                        for rid, rel in a.relationships.items()
+                    },
                 }
                 for aid, a in self.agents.items()
             },
@@ -162,6 +171,16 @@ class WorldState:
                 home_location_id=ad["home_location_id"],
                 current_location_id=ad["current_location_id"],
                 personality=ad.get("personality", {}),
+                relationships={
+                    rid: Relationship(
+                        other_agent_id=rid,
+                        familiarity=rd.get("familiarity", 0.0),
+                        trust=rd.get("trust", 0.5),
+                        affinity=rd.get("affinity", 0.0),
+                        last_interaction_tick=rd.get("last_interaction_tick", 0),
+                    )
+                    for rid, rd in ad.get("relationships", {}).items()
+                },
             )
 
         return cls(
@@ -195,9 +214,13 @@ class WorldState:
             agent = self.agents.get(agent_id)
             other = self.agents.get(target)
             if agent and other:
-                rel = agent.relationships.setdefault(target, Relationship(other_agent_id=target))
-                rel.familiarity = min(1.0, rel.familiarity + 0.05)
-                rel.last_interaction_tick = self.current_tick
+                # Bidirectional: a conversation makes both parties more familiar.
+                for who, other_id in ((agent, target), (other, agent_id)):
+                    rel = who.relationships.setdefault(
+                        other_id, Relationship(other_agent_id=other_id)
+                    )
+                    rel.familiarity = min(1.0, rel.familiarity + 0.05)
+                    rel.last_interaction_tick = self.current_tick
 
     def record_event(self, evt: dict) -> None:
         event = Event(
