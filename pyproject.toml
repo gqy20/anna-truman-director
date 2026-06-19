@@ -8,9 +8,14 @@ authors = [{ name = "gqy20", email = "qingyu_ge@foxmail.com" }]
 license = { text = "MIT" }
 dependencies = [
     "executa-sdk>=0.1.0",
+    "pyyaml>=6.0",
 ]
 
-[project.optional-dependencies]
+# PEP 735 dependency-groups (not [project.optional-dependencies]): uv sync
+# installs the `dev` group by default, so `uv run pytest` / `uv run ruff` work
+# without `--extra dev` — and don't silently fall back to a system Python that
+# lacks executa_sdk.
+[dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",

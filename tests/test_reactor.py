@@ -71,3 +71,13 @@ async def test_director_injection_visible_to_model_same_tick():
     world_view = json.loads(sampling.calls[0]["messages"][0]["content"]["text"])
     world_changes = [e for e in world_view["events"] if e["event_type"] == "world_change"]
     assert any("storm" in e["description"].lower() for e in world_changes)
+
+
+def test_system_prompt_loaded_from_yaml():
+    """SYSTEM_PROMPT is loaded from prompts.yaml (not hardcoded) and carries the
+    directives that make the simulation + director injections work."""
+    from truman_director.engine import SYSTEM_PROMPT
+
+    assert "world-simulator" in SYSTEM_PROMPT
+    assert "world_change" in SYSTEM_PROMPT
+    assert len(SYSTEM_PROMPT) > 500

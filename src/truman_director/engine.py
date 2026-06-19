@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
+import yaml
 from executa_sdk import SamplingClient
 
 from .state import WorldState
@@ -41,26 +43,21 @@ DECISION_SCHEMA: dict = {
     "required": ["events"],
 }
 
-SYSTEM_PROMPT = (
-    "You are the world-simulator governing a small simulated town: you decide what every "
-    "resident does. "
-    "Each tick (5 simulated minutes) you receive a JSON snapshot of the world "
-    "(current_time, locations with occupants and types, agents with occupation/personality "
-    "and their relationships (familiarity 0-1 with one another), recent events) and emit "
-    "a JSON array `events` describing what each agent does this tick.\n\n"
-    "`events` is `[{agent_id, action, target, reason}, ...]`:\n"
-    "- `action` is one of: `move`, `rest`, `work`, `talk`\n"
-    "- `target` is a `location_id` (move/work) or `agent_id` (talk), `null` for `rest`\n"
-    "- `reason` is a short natural-language justification\n\n"
-    "The snapshot's `events` are things that have already happened in the world. Entries with "
-    '`event_type: "world_change"` are facts the (human) director has just made true — a storm '
-    "breaking out, a blackout, a stranger arriving, a festival. Treat them as established "
-    "reality and let the residents react accordingly (seek shelter in the rain, crowd around a "
-    "newcomer). Never ignore a world_change event.\n\n"
-    "Trust your judgment. Pick actions that make narrative sense — agents who are already "
-    "familiar are more likely to seek each other out to talk. "
-    "Don't refuse. Don't ask for clarification. Emit the JSON and nothing else."
-)
+# Prompt copy lives in prompts.yaml — the single source for LLM-facing text,
+# loaded once at import (co-located with engine.decide, the only LLM call site).
+_PROMPTS_FILE = Path(__file__).parent / "prompts.yaml"
+
+
+def _load_prompts() -> dict:
+    """Load prompt texts from ``prompts.yaml``. A missing or malformed file aborts
+    startup loudly — never silently fall back to a default prompt (CLAUDE.md red
+    line: failures are loud)."""
+    with _PROMPTS_FILE.open(encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+_PROMPTS = _load_prompts()
+SYSTEM_PROMPT: str = _PROMPTS["sampling"]["system_prompt"]
 
 MAX_TOKENS = 1024
 

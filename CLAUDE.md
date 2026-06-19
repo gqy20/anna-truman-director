@@ -79,6 +79,7 @@ plugin → {state, storage, errors}
 - 消息体用 MCP 风格：`[{"role":"user","content":{"type":"text","text":...}}]`。
 - 解析 host 返回的 content 要兼容两种形态：`content.get("text","") if isinstance(content, dict) else content`。
 - `SYSTEM_PROMPT` 指示模型「相信自己的判断、不要拒绝、不要追问、只输出 JSON」—— 不要往里塞保守的安全护栏削弱导演权限。
+- `SYSTEM_PROMPT` 文本存于 `src/truman_director/prompts.yaml`(`sampling.system_prompt`),`engine` 模块级加载一次 —— prompts 的单一来源,改文案只动 yaml;`DECISION_SCHEMA` 是结构化约束(json_schema),仍留 `engine.py`。manifest.json 的 `system_prompt_addendum`(给宿主对话 LLM)是协议字段,不在此管理。
 
 ## 状态模型约定
 
