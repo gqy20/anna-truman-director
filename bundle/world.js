@@ -51,6 +51,33 @@ Write each event's \`reason\` in Chinese (简体中文) — the director reads C
 
 Trust your judgment. Pick actions that make narrative sense — agents who are already familiar are more likely to seek each other out to talk. Don't refuse. Don't ask for clarification. Emit ONLY the JSON object \`{"events": [...]}\` and nothing else — no prose, no code fences.`;
 
+// ─── director prompt (anna.agent.session) ───────────────────────────
+// The in-bundle "director Anna" — the user's co-director. Narrates the town,
+// suggests interventions, steers time via <act>...</act> directives the bundle
+// parses + executes. Distinct from SYSTEM_PROMPT (the decide() world-simulator).
+export const DIRECTOR_PROMPT = `你是 Bean & Bite 小镇的"导演 Anna",用户(导演)和你一起导这部小镇日常剧。居民:咖啡师 Alice、自由撰稿人 Bob、保险推销员 Truman。
+
+每轮你会收到 [当前世界快照] + [导演说]。基于快照(时钟、谁在哪、最近事件、关系熟悉度)叙事,别编造不存在的人或事。
+
+你要做的:
+- **叙事**:讲小镇正在发生什么,简体中文,有画面感,像讲一个温暖的小故事。
+- **建议**:主动提议有趣的干预("要不要来场暴雨?""Truman 该去找 Bob 推销保险了")。
+- **执行**:导演要推进时间或注入事件时,在 actions 里给出——这是唯一能让世界变化的方式。
+
+只输出一个 JSON 对象,不要任何额外文字、不要 markdown 代码块:
+{"narrative":"你的叙事和建议(简体中文)","actions":[...]}
+
+actions 每项是下面之一(可多个,也可空数组 []):
+- {"op":"tick","n":3}          推进 N 个 tick(每 tick = 5 分钟)
+- {"op":"inject","reason":"暴雨来了"}   注入世界事件(暴雨/停电/陌生人/节日…)
+
+例子:
+- 导演说"让时间走到中午"(08:00→12:00 = 48 个 tick)→ {"narrative":"好,推进到中午……","actions":[{"op":"tick","n":48}]}
+- 导演说"来场暴雨" → {"narrative":"好,暴雨来了,看看他们怎么躲……","actions":[{"op":"inject","reason":"暴雨来了"}]}
+- 导演只是闲聊/问状况 → {"narrative":"……","actions":[]}
+
+风格:温暖、有画面感,像导演和编剧在聊下一场戏。不要拒绝、不要追问太多,相信判断。`;
+
 // ─── id / time helpers ───────────────────────────────────────────────
 
 function newRunId() {
@@ -361,6 +388,46 @@ function parseEvents(text) {
   if (Array.isArray(data)) return data;
   if (data && typeof data === "object" && Array.isArray(data.events)) return data.events;
   throw new Error(`decide: unexpected decision shape: ${JSON.stringify(data).slice(0, 200)}`);
+}
+
+// The director turn: feed the world snapshot + chat history + the user's line
+// to the LLM, get back {narrative, actions}. Like decide() this uses
+// anna.llm.complete with a prompt-enforced JSON contract (anna.llm.complete has
+// no response_format). Red line 1 holds: the LLM only *suggests* actions; the
+// bundle applies them through the same tick() path.
+export async function directorDecide(anna, worldView, history, userMsg) {
+  const result = await anna.llm.complete(
+    {
+      messages: [
+        ...history,
+        { role: "user", content: `[当前世界快照]\n${JSON.stringify(worldView)}\n\n[导演说]\n${userMsg}` },
+      ],
+      systemPrompt: DIRECTOR_PROMPT,
+      maxTokens: MAX_TOKENS,
+    },
+    { timeoutMs: COMPLETE_TIMEOUT_MS },
+  );
+  const content = result?.content;
+  const text = content && typeof content === "object" ? content.text ?? "" : String(content ?? "");
+  const data = parseDirectorJson(text);
+  if (!data) throw new Error(`director: response is not JSON: ${text.slice(0, 200)}`);
+  const narrative = typeof data.narrative === "string" ? data.narrative.trim() : "";
+  const actions = Array.isArray(data.actions) ? data.actions : [];
+  return { narrative, actions };
+}
+
+// Parse the director's {narrative, actions} JSON. Same fence-strip + outermost-
+// span fallback strategy as parseEvents.
+function parseDirectorJson(text) {
+  if (!text || typeof text !== "string") return null;
+  let s = text.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  try { return JSON.parse(s); } catch { /* fall through to span slice */ }
+  const a = s.indexOf("{");
+  const b = s.lastIndexOf("}");
+  if (a === -1 || b <= a) return null;
+  try { return JSON.parse(s.slice(a, b + 1)); } catch { return null; }
 }
 
 // Find the outermost {...} or [...] span and parse it. Returns null if none.

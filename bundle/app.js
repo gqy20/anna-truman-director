@@ -20,6 +20,7 @@ import {
   fromSnapshot,
   tick,
   applyInjectEvent,
+  directorDecide,
 } from "./world.js";
 
 const SCENARIO = "cafe_town";
@@ -41,6 +42,13 @@ async function boot() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onInject();
+    }
+  });
+  $("btn-chat-send").addEventListener("click", onSendChat);
+  $("chat-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSendChat();
     }
   });
 
@@ -129,6 +137,77 @@ async function onInject() {
     setStatus(`🎬 queued: “${spec.reason}” — fires at tick ${ack.effective_tick}.`, "info");
   } catch (err) {
     setStatus(`inject failed: ${err.message || err}`, "err");
+  }
+}
+
+// ─── director chat (anna.llm.complete) ──────────────────────────────
+// The in-bundle "director Anna": each turn we hand the LLM the world snapshot
+// + recent chat history + the user's line, and it returns {narrative, actions}.
+// She narrates + suggests; the bundle applies any actions through the SAME
+// tick() path (red line 1 — the LLM only suggests, the bundle code applies).
+// (Tried anna.agent.session first — its <act>-tag protocol was unreliable; the
+// JSON contract over llm.complete mirrors decide() which is 8/8 solid.)
+
+const chatHistory = []; // [{role, content}] across turns, bounded below
+
+function appendChat(role, text) {
+  const log = $("chat-log");
+  const empty = log.querySelector(".chat-empty");
+  if (empty) empty.remove();
+  const msg = document.createElement("div");
+  msg.className = `chat-msg ${role}`;
+  msg.textContent = text;
+  log.appendChild(msg);
+  log.scrollTop = log.scrollHeight;
+  return msg;
+}
+
+async function sendToDirector(text) {
+  if (!anna || !world) return;
+  appendChat("user", text);
+  setStatus("Anna 正在想……", "info");
+  const annaMsg = appendChat("anna", "");
+  annaMsg.classList.add("streaming");
+  try {
+    const result = await directorDecide(anna, snapshot(world), chatHistory, text);
+    annaMsg.classList.remove("streaming");
+    annaMsg.textContent = result.narrative || "(…)";
+    chatHistory.push(
+      { role: "user", content: text },
+      { role: "assistant", content: result.narrative || "" },
+    );
+    if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
+    // Execute actions through the deterministic tick() path. Cap tick N — each
+    // tick = one decide() LLM call, big jumps hit the 10 req/min quota + lag.
+    for (const act of result.actions) {
+      if (act.op === "tick" && act.n) {
+        await tick(anna, world, Math.min(Math.max(1, act.n), 8));
+      } else if (act.op === "inject" && act.reason) {
+        applyInjectEvent(world, { reason: act.reason });
+        await tick(anna, world, 1); // consume the injection this tick
+      }
+    }
+    if (result.actions.length) await refresh();
+    setStatus(
+      result.actions.length ? `Anna 推进了 ${result.actions.length} 个动作。` : "Anna 已回复。",
+      "ok",
+    );
+  } catch (err) {
+    annaMsg.classList.remove("streaming");
+    annaMsg.textContent = "⚠ " + (err.message || err);
+    setStatus(`Anna 出错: ${err.message || err}`, "err");
+  }
+}
+
+async function onSendChat() {
+  const text = ($("chat-input").value || "").trim();
+  if (!text) return;
+  $("chat-input").value = "";
+  $("btn-chat-send").disabled = true;
+  try {
+    await sendToDirector(text);
+  } finally {
+    $("btn-chat-send").disabled = false;
   }
 }
 
@@ -236,10 +315,11 @@ function renderTimeline(world) {
 }
 
 function enableTick(on) {
-  // Tick AND inject both require a live in-memory world.
+  // Tick, inject, and director chat all require a live in-memory world.
   $("btn-tick").disabled = !on;
   $("btn-tick5").disabled = !on;
   $("btn-inject").disabled = !on;
+  $("btn-chat-send").disabled = !on;
 }
 
 function setStatus(msg, kind) {
