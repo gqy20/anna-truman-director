@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .errors import UnknownScenarioError
-from .state import Agent, Location, LocationType, WorldState
+from .errors import InvalidWorldSpecError, UnknownScenarioError
+from .state import (
+    Agent,
+    Location,
+    LocationType,
+    WorldState,
+    agent_from_dict,
+    location_from_dict,
+)
 
 
 def _cafe_town(start: datetime) -> WorldState:
@@ -123,3 +130,111 @@ def build(slug: str, start: datetime) -> WorldState:
     if slug not in SCENARIOS:
         raise UnknownScenarioError(f"unknown scenario: {slug!r}; available: {sorted(SCENARIOS)}")
     return SCENARIOS[slug](start)
+
+
+# ── custom world spec ─────────────────────────────────────────────────
+
+
+def build_from_spec(spec: dict, start: datetime) -> WorldState:
+    """Build a WorldState from a user-supplied world spec (custom residents/locations/time).
+
+    Validates structure + references + value ranges; raises ``InvalidWorldSpecError`` loudly
+    (CLAUDE.md red line: failures are loud). Shares the dict→object parsers with
+    ``WorldState.from_snapshot`` so spec and snapshot never drift apart.
+    """
+    _validate_spec(spec)
+    locations = {ld["id"]: location_from_dict(ld) for ld in spec["locations"]}
+    agents: dict[str, Agent] = {}
+    for ad in spec["agents"]:
+        entry = dict(ad)
+        entry.setdefault("current_location_id", entry["home_location_id"])
+        agents[entry["id"]] = agent_from_dict(entry)
+    return WorldState(
+        run_id=f"run_{int(start.timestamp() * 1000)}",
+        scenario=spec.get("name") or "custom",
+        world_time=spec.get("world_time", "08:00"),
+        locations=locations,
+        agents=agents,
+    )
+
+
+def _validate_spec(spec: dict) -> None:
+    """Structural + referential + value-range checks. Raises on the first problem."""
+    if not isinstance(spec, dict):
+        raise InvalidWorldSpecError("spec must be an object")
+
+    locations = spec.get("locations")
+    agents = spec.get("agents")
+    if not isinstance(locations, list) or not locations:
+        raise InvalidWorldSpecError("spec.locations must be a non-empty array")
+    if not isinstance(agents, list) or not agents:
+        raise InvalidWorldSpecError("spec.agents must be a non-empty array")
+
+    world_time = spec.get("world_time", "08:00")
+    if not _is_hhmm(world_time):
+        raise InvalidWorldSpecError(f"spec.world_time must be HH:MM, got {world_time!r}")
+
+    loc_ids: set[str] = set()
+    for i, ld in enumerate(locations):
+        ctx = f"locations[{i}]"
+        _require_fields(ld, ("id", "name", "type", "x", "y"), ctx)
+        if ld["id"] in loc_ids:
+            raise InvalidWorldSpecError(f"duplicate location id: {ld['id']!r}")
+        loc_ids.add(ld["id"])
+        _check_int_range(ld, "x", 0, 100, f"{ctx}.x")
+        _check_int_range(ld, "y", 0, 100, f"{ctx}.y")
+        capacity = ld.get("capacity", 10)
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
+            raise InvalidWorldSpecError(f"{ctx}.capacity must be a positive int, got {capacity!r}")
+        try:
+            LocationType(ld["type"])
+        except (ValueError, TypeError):
+            valid = [t.value for t in LocationType]
+            raise InvalidWorldSpecError(f"{ctx}.type {ld['type']!r} not in {valid}") from None
+
+    agent_ids: set[str] = set()
+    for i, ad in enumerate(agents):
+        ctx = f"agents[{i}]"
+        _require_fields(ad, ("id", "name", "occupation", "home_location_id"), ctx)
+        if ad["id"] in agent_ids:
+            raise InvalidWorldSpecError(f"duplicate agent id: {ad['id']!r}")
+        agent_ids.add(ad["id"])
+        home = ad["home_location_id"]
+        if home not in loc_ids:
+            raise InvalidWorldSpecError(f"{ctx}.home_location_id {home!r} not in locations")
+        current = ad.get("current_location_id", home)
+        if current not in loc_ids:
+            raise InvalidWorldSpecError(f"{ctx}.current_location_id {current!r} not in locations")
+        personality = ad.get("personality", {})
+        if not isinstance(personality, dict):
+            raise InvalidWorldSpecError(f"{ctx}.personality must be an object")
+        for trait, value in personality.items():
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not 0 <= value <= 1
+            ):
+                raise InvalidWorldSpecError(
+                    f"{ctx}.personality.{trait} must be a number in 0..1, got {value!r}"
+                )
+
+
+def _require_fields(d: dict, fields: tuple[str, ...], ctx: str) -> None:
+    missing = [f for f in fields if f not in d]
+    if missing:
+        raise InvalidWorldSpecError(f"{ctx} missing required field(s): {missing}")
+
+
+def _check_int_range(d: dict, key: str, lo: int, hi: int, ctx: str) -> None:
+    value = d.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
+        raise InvalidWorldSpecError(f"{ctx} must be an int in {lo}..{hi}, got {value!r}")
+
+
+def _is_hhmm(s: object) -> bool:
+    if not isinstance(s, str) or len(s) != 5 or s[2] != ":":
+        return False
+    try:
+        return 0 <= int(s[:2]) <= 23 and 0 <= int(s[3:]) <= 59
+    except ValueError:
+        return False

@@ -15,7 +15,7 @@
     }
   ],
   "optional_executas": [],
-  "system_prompt_addendum": "The user has the Truman Director app open. The truman-director Executa is the source of truth for the simulated town — call it with method='world' and action='tick' to advance time, action='init' to (re)start a scenario, action='inject_event' to drop in a director event. The bundle renders the world; you narrate what happens between ticks.",
+  "system_prompt_addendum": "The user has the Truman Director app open. The truman-director Executa is the source of truth for the simulated town — call it with method='world' and action='tick' to advance time, action='inject_event' to drop in a director event, and action='init' to (re)start the world. For init, EITHER pass scenario='cafe_town' for the preset town, OR pass spec={name, world_time(HH:MM), locations:[{id,name,type,x(0-100),y(0-100),capacity?,description?}], agents:[{id,name,occupation,home_location_id,current_location_id?,personality?}]} to build a custom town. When the user describes a world they want, ask a couple of clarifying questions (how many residents, what places, what tone), then assemble it into spec and call init once. The bundle renders the world; you narrate what happens between ticks.",
   "user_message_prefix_template": "[Truman] {user_message}",
   "tags": ["simulation", "social", "director", "ai-town"],
   "ui": {

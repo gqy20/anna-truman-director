@@ -71,6 +71,46 @@ class Event:
     created_at: float = 0.0
 
 
+def location_from_dict(ld: dict) -> Location:
+    """Parse one location dict (snapshot entry or world-spec entry) into a Location.
+
+    Shared by ``WorldState.from_snapshot`` and ``scenarios.build_from_spec`` so the two
+    ingestion paths can never drift apart.
+    """
+    return Location(
+        id=ld["id"],
+        name=ld["name"],
+        type=LocationType(ld["type"]),
+        x=ld["x"],
+        y=ld["y"],
+        capacity=ld.get("capacity", 10),
+        description=ld.get("description", ""),
+        occupants=set(ld.get("occupants", [])),
+    )
+
+
+def agent_from_dict(ad: dict) -> Agent:
+    """Parse one agent dict (snapshot entry or world-spec entry) into an Agent."""
+    return Agent(
+        id=ad["id"],
+        name=ad["name"],
+        occupation=ad["occupation"],
+        home_location_id=ad["home_location_id"],
+        current_location_id=ad["current_location_id"],
+        personality=ad.get("personality", {}),
+        relationships={
+            rid: Relationship(
+                other_agent_id=rid,
+                familiarity=rd.get("familiarity", 0.0),
+                trust=rd.get("trust", 0.5),
+                affinity=rd.get("affinity", 0.0),
+                last_interaction_tick=rd.get("last_interaction_tick", 0),
+            )
+            for rid, rd in ad.get("relationships", {}).items()
+        },
+    )
+
+
 @dataclass
 class WorldState:
     run_id: str
@@ -147,41 +187,9 @@ class WorldState:
 
     @classmethod
     def from_snapshot(cls, data: dict) -> WorldState:
-        """Reconstruct from APS KV payload."""
-        locations = {}
-        for lid, ld in data.get("locations", {}).items():
-            loc = Location(
-                id=ld["id"],
-                name=ld["name"],
-                type=LocationType(ld["type"]),
-                x=ld["x"],
-                y=ld["y"],
-                capacity=ld.get("capacity", 10),
-                description=ld.get("description", ""),
-                occupants=set(ld.get("occupants", [])),
-            )
-            locations[lid] = loc
-
-        agents = {}
-        for aid, ad in data.get("agents", {}).items():
-            agents[aid] = Agent(
-                id=ad["id"],
-                name=ad["name"],
-                occupation=ad["occupation"],
-                home_location_id=ad["home_location_id"],
-                current_location_id=ad["current_location_id"],
-                personality=ad.get("personality", {}),
-                relationships={
-                    rid: Relationship(
-                        other_agent_id=rid,
-                        familiarity=rd.get("familiarity", 0.0),
-                        trust=rd.get("trust", 0.5),
-                        affinity=rd.get("affinity", 0.0),
-                        last_interaction_tick=rd.get("last_interaction_tick", 0),
-                    )
-                    for rid, rd in ad.get("relationships", {}).items()
-                },
-            )
+        """Reconstruct from APS KV payload (shares parsers with scenarios.build_from_spec)."""
+        locations = {lid: location_from_dict(ld) for lid, ld in data.get("locations", {}).items()}
+        agents = {aid: agent_from_dict(ad) for aid, ad in data.get("agents", {}).items()}
 
         return cls(
             run_id=data["run_id"],

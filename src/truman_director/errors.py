@@ -13,6 +13,12 @@ class WorldNotInitializedError(TrumanError):
     code = -32001
 
 
+class InvalidWorldSpecError(TrumanError):
+    """A custom world spec failed validation (missing field, bad reference, bad type, etc.)."""
+
+    code = -32002
+
+
 class UnknownScenarioError(TrumanError):
     """Scenario slug not in SCENARIOS dict."""
 
