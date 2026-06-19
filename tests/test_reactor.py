@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from conftest import FakeSampling, FakeStorage
@@ -39,3 +40,34 @@ async def test_inject_event_fires_next_tick():
     # injected event appears alongside model events
     flat = results[0]["events"]
     assert any(e.get("reason") == "say hi" for e in flat)
+
+
+async def test_director_world_change_enters_shared_context():
+    """A director's world_change injection (e.g. 'a storm breaks out') is recorded as a
+    world event that every resident shares in the next snapshot — so the world-simulator
+    can react to it instead of ignoring the director."""
+    world = _fresh_world()
+    sampling = FakeSampling(events=[])
+    storage = FakeStorage()
+    apply_inject_event(world, {"reason": "a sudden storm breaks out"})
+    await tick(world, sampling, storage, n=1)
+    snap = world.snapshot()
+    world_changes = [e for e in snap["events"] if e["event_type"] == "world_change"]
+    assert any("storm" in e["description"].lower() for e in world_changes)
+    # high importance — the director made it happen
+    assert all(e["importance"] >= 0.9 for e in world_changes)
+
+
+async def test_director_injection_visible_to_model_same_tick():
+    """The director's injection must be inside the snapshot the model receives THIS
+    tick — otherwise residents react one tick too late. Guards the tick ordering
+    (drain+apply+record injections BEFORE snapshot, not after decide)."""
+    world = _fresh_world()
+    sampling = FakeSampling(events=[])
+    storage = FakeStorage()
+    apply_inject_event(world, {"reason": "a sudden storm breaks out"})
+    await tick(world, sampling, storage, n=1)
+    assert len(sampling.calls) == 1
+    world_view = json.loads(sampling.calls[0]["messages"][0]["content"]["text"])
+    world_changes = [e for e in world_view["events"] if e["event_type"] == "world_change"]
+    assert any("storm" in e["description"].lower() for e in world_changes)

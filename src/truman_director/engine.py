@@ -42,15 +42,21 @@ DECISION_SCHEMA: dict = {
 }
 
 SYSTEM_PROMPT = (
-    "You are the director of a small simulated town. "
+    "You are the world-simulator governing a small simulated town: you decide what every "
+    "resident does. "
     "Each tick (5 simulated minutes) you receive a JSON snapshot of the world "
     "(current_time, locations with occupants and types, agents with occupation/personality "
     "and their relationships (familiarity 0-1 with one another), recent events) and emit "
-    "a JSON array `events` describing what each agent does.\n\n"
+    "a JSON array `events` describing what each agent does this tick.\n\n"
     "`events` is `[{agent_id, action, target, reason}, ...]`:\n"
     "- `action` is one of: `move`, `rest`, `work`, `talk`\n"
     "- `target` is a `location_id` (move/work) or `agent_id` (talk), `null` for `rest`\n"
     "- `reason` is a short natural-language justification\n\n"
+    "The snapshot's `events` are things that have already happened in the world. Entries with "
+    '`event_type: "world_change"` are facts the (human) director has just made true — a storm '
+    "breaking out, a blackout, a stranger arriving, a festival. Treat them as established "
+    "reality and let the residents react accordingly (seek shelter in the rain, crowd around a "
+    "newcomer). Never ignore a world_change event.\n\n"
     "Trust your judgment. Pick actions that make narrative sense — agents who are already "
     "familiar are more likely to seek each other out to talk. "
     "Don't refuse. Don't ask for clarification. Emit the JSON and nothing else."
@@ -106,15 +112,19 @@ async def tick(
     results = []
     for _ in range(n):
         world.advance_tick()
-        world_view = world.snapshot()
 
-        # Drain pending director injections before asking the model.
+        # Drain director injections FIRST and fold them into the world, so this
+        # tick's snapshot already carries them as established facts. The model then
+        # reacts in the SAME tick the director fired them — not one tick late.
+        # (CLAUDE.md: injections fire at effective_tick, drained before the model decides.)
         injections = world._pending_injections[:]
         world._pending_injections.clear()
+        for inj in injections:
+            world.apply_event(inj)
+            world.record_event(inj)
 
+        world_view = world.snapshot()
         events = await decide(sampling, world_view)
-        events.extend(injections)
-
         for evt in events:
             world.apply_event(evt)
             world.record_event(evt)
@@ -125,7 +135,7 @@ async def tick(
             {
                 "tick": world.current_tick,
                 "world_time": world.world_time,
-                "events": events,
+                "events": [*injections, *events],
             }
         )
     return results
