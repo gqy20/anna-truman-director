@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 from executa_sdk import SamplingClient
 
+from .errors import TickBudgetExceededError
 from .state import WorldState
 from .storage import save
 
@@ -23,6 +24,12 @@ from .storage import save
 
 # MCP-style structured-output schema. The host enforces: serialized ≤32KB,
 # depth ≤8, ≤512 nodes, name matching ^[a-zA-Z0-9_-]{1,64}$.
+#
+# strict:true only bites when the schema itself is strict — so every property
+# is listed in `required` (OpenAI-compatible hard rule; `target` is required but
+# nullable — null for `rest`, a location/agent id otherwise) and every object
+# carries `additionalProperties: False` (shuts the door on hallucinated fields,
+# and is what flips a backend from "valid JSON" to "conforms to schema").
 DECISION_SCHEMA: dict = {
     "type": "object",
     "properties": {
@@ -36,11 +43,13 @@ DECISION_SCHEMA: dict = {
                     "target": {"type": ["string", "null"]},
                     "reason": {"type": "string"},
                 },
-                "required": ["agent_id", "action", "reason"],
+                "required": ["agent_id", "action", "target", "reason"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["events"],
+    "additionalProperties": False,
 }
 
 # Prompt copy lives in prompts.yaml — the single source for LLM-facing text,
@@ -63,6 +72,13 @@ MAX_TOKENS = 1024
 # Wall-clock cap per sampling call. Matches the sampling-summarizer reference and
 # bounds how long a single tick can hang if the host stalls (SDK default is 90s).
 SAMPLING_TIMEOUT = 60.0
+# Each invoke gets a per-invoke sampling budget (max_calls, default 8) from the
+# host. One tick = one sampling call, so n ticks inside a single invoke stay
+# under budget only while n ≤ this. A larger fast-forward must be driven from the
+# bundle as a loop of single-tick invokes, never as one big invoke (which would
+# burn MAX_TICKS_PER_INVOKE ticks, persist them, then fail partway — a
+# half-applied world). See TickBudgetExceededError.
+MAX_TICKS_PER_INVOKE = 8
 
 
 async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
@@ -109,7 +125,19 @@ async def tick(
     storage,  # StorageClient
     n: int = 1,
 ) -> list[dict]:
-    """Advance *n* ticks. Returns a list of per-tick result dicts."""
+    """Advance *n* ticks. Returns a list of per-tick result dicts.
+
+    *n* is capped at :data:`MAX_TICKS_PER_INVOKE`: one tick is one sampling call,
+    and the host budgets ``max_calls`` (default 8) per invoke. Asking for more is
+    a loud :class:`TickBudgetExceededError` — never a silent, half-applied run
+    that persists the first few ticks and then fails.
+    """
+    if n > MAX_TICKS_PER_INVOKE:
+        raise TickBudgetExceededError(
+            f"tick n={n} exceeds the per-invoke sampling budget of "
+            f"{MAX_TICKS_PER_INVOKE}; drive larger fast-forwards from the bundle "
+            "as a loop of single-tick invokes"
+        )
     results = []
     for _ in range(n):
         world.advance_tick()

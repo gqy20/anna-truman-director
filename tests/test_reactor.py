@@ -1,9 +1,11 @@
 import json
 from datetime import UTC, datetime
 
+import pytest
 from conftest import FakeSampling, FakeStorage
 
 from truman_director.engine import apply_inject_event, tick
+from truman_director.errors import TickBudgetExceededError
 from truman_director.scenarios import build
 
 
@@ -81,3 +83,18 @@ def test_system_prompt_loaded_from_yaml():
     assert "world-simulator" in SYSTEM_PROMPT
     assert "world_change" in SYSTEM_PROMPT
     assert len(SYSTEM_PROMPT) > 500
+
+
+async def test_tick_rejects_over_budget():
+    """Asking for more ticks than MAX_TICKS_PER_INVOKE fails loud BEFORE any
+    sampling or persist — never a half-applied world that saved the first few."""
+    from truman_director.engine import MAX_TICKS_PER_INVOKE
+
+    world = _fresh_world()
+    sampling = FakeSampling(events=[])
+    storage = FakeStorage()
+    with pytest.raises(TickBudgetExceededError):
+        await tick(world, sampling, storage, n=MAX_TICKS_PER_INVOKE + 1)
+    # nothing consumed, nothing persisted — zero side effects
+    assert sampling.calls == []
+    assert not storage.data
