@@ -100,7 +100,7 @@ plugin → {state, storage, errors}
 
 - Conventional Commits：`type(scope): subject`。允许的 type 见 `.pre-commit-config.yaml`（feat / fix / docs / style / refactor / perf / test / build / ci / chore / revert）。
 - `node_modules/`、`.venv/`、`__pycache__/`、各类缓存已在 `.gitignore`，**不要**提交。
-- 仅在明确要求时提交 / 推送；处于默认分支首个提交之外时，先开分支。
+- 仅在明确要求时提交 / 推送；直接在 `main` 分支提交，**不开分支**（项目简单，分支开销大于收益）。
 
 ## 命令速查
 
