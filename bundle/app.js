@@ -21,6 +21,7 @@ const SCENARIO = "cafe_town";
 const WORLD_KEY = "truman:run:world";
 
 const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let anna = null;
 
 // ─── boot ───────────────────────────────────────────────────────────
@@ -68,13 +69,24 @@ async function onStart() {
 
 async function onTick(n) {
   if (!anna) return;
+  // Fast-forward as a loop of single-tick invokes: each invoke carries its own
+  // per-invoke sampling budget (max_calls), so this stays under it where one big
+  // `tick n=N` would blow it and leave a half-applied world. One render per tick
+  // also demos better than a fire-and-forget batch.
   setStatus(`Advancing ${n} tick(s)…`, "info");
+  enableTick(false);
   try {
-    const data = await invokeWorld({ action: "tick", n });
-    await refresh();
-    setStatus(`Advanced to tick ${data.results.at(-1).tick}.`, "ok");
+    let last = null;
+    for (let i = 0; i < n; i++) {
+      last = await invokeWorld({ action: "tick", n: 1 });
+      await refresh();
+      await sleep(280); // pacing — keeps the UI responsive, eases rate limits
+    }
+    setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
   } catch (err) {
     setStatus(`tick failed: ${err.message || err}`, "err");
+  } finally {
+    enableTick(true);
   }
 }
 
