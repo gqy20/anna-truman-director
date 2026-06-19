@@ -1,5 +1,5 @@
 [project]
-name = "tool-DEV-truman-director-xxxxxxxx"
+name = "tool-qingyu_ge-anna-truman-director-sxah66uc"
 version = "0.1.0"
 description = "Truman Director — Executa stdio tool plugin for the Truman Town Anna App"
 readme = "README.md"
@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-"tool-DEV-truman-director-xxxxxxxx" = "truman_director.plugin:main"
+"tool-qingyu_ge-anna-truman-director-sxah66uc" = "truman_director.plugin:main"
 
 [build-system]
 requires = ["hatchling"]

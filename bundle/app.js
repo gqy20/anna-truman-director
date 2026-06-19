@@ -15,7 +15,7 @@ const EXECUTA_TOOL_ID =
   (typeof window !== "undefined" &&
     window.__ANNA_TOOL_IDS__ &&
     window.__ANNA_TOOL_IDS__[EXECUTA_HANDLE]) ||
-  "tool-DEV-truman-director-xxxxxxxx";
+  "tool-qingyu_ge-anna-truman-director-sxah66uc";
 
 const SCENARIO = "cafe_town";
 const WORLD_KEY = "truman:run:world";

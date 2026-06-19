@@ -1,11 +1,11 @@
 {
-  "slug": "truman-director",
+  "slug": "anna-truman-director",
   "name": "Truman Director",
   "version": "0.1.0",
   "executa_type": "tool",
   "description": "LLM-directed tick-based town simulator. The world tool exposes init | tick | inject_event; agent decisions are produced by the host LLM via sampling.",
 
-  "tool_id": "tool-DEV-truman-director-xxxxxxxx",
+  "tool_id": "tool-qingyu_ge-anna-truman-director-sxah66uc",
   "type": "python",
   "enabled": true,
 
