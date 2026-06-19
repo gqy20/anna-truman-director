@@ -1,7 +1,7 @@
 {
   "slug": "anna-truman-director",
   "name": "Truman Director",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "tagline": "Observe, record, and direct a mini AI town's natural evolution.",
   "description": "Truman Director is an experience-type Anna App. Users open it in Anna chat to observe and intervene in a mini AI town where a handful of residents live, interact, and evolve.\n\n**What's inside**\n\n- A static single-window UI (CSS Grid map + timeline + director panel).\n- `truman-director` — Python Executa that ticks the world and persists it to Anna Storage. Every tick, agent actions come straight from the host LLM (sampling) — no rule engine.",
   "category": "entertainment",
