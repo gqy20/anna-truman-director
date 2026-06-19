@@ -64,7 +64,7 @@ app.js → anna.storage（渲染读取）
 - **`anna.llm.complete` 不支持 `response_format`/json_schema**（结构化输出只有 Executa `sampling/createMessage` 有）。所以 decide 靠 `SYSTEM_PROMPT` 强约束输出 JSON `{events:[...]}`，再 `parseEvents` 稳健解析：去 ```` ```json ```` 围栏 → `JSON.parse` → 失败则切最外层 `{…}`/`[…]` → dict 取 `.events`、list 直取。解析失败**响亮 throw**（红线 4），不静默。这是纯云架构下唯一的可靠性妥协。
 - 消息体：`[{role:"user", content:{type:"text", text:JSON.stringify(worldView)}}]`，带 `systemPrompt: SYSTEM_PROMPT`、`maxTokens: 1024`、第二参 `{timeoutMs: 60_000}`。
 - 兼容 host 返回的两种形态：`content.text`（对象）或裸字符串。
-- `SYSTEM_PROMPT`（常量，定义于 `world.js` 顶部）指示模型「相信自己的判断、不要拒绝、不要追问、只输出 JSON」—— 不要往里塞保守的安全护栏削弱导演权限。改文案**只动** `world.js` 的 `SYSTEM_PROMPT` 常量（单一来源）。`manifest.json` 的 `system_prompt_addendum` 是给宿主**对话** LLM（Anna）的协议字段，与此不同、不在此管理。
+- prompt 文案集中在 `bundle/prompts.js`（`SYSTEM_PROMPT` + `DIRECTOR_PROMPT`），`world.js` import。指示模型「相信自己的判断、不要拒绝、不要追问、只输出 JSON」—— 不要往里塞保守的安全护栏削弱导演权限。改文案**只动** `prompts.js`（单一来源；bundle 无构建步骤，用 JS 模块而非 Python 版的 yaml）。`manifest.json` 的 `system_prompt_addendum` 是给宿主**对话** LLM（Anna）的协议字段，与此不同、不在此管理。
 
 ## 状态模型约定
 
