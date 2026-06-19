@@ -22,6 +22,10 @@ node_modules/
 .anna/
 bundle/anna-tool-ids.js
 
+# Secrets — local platform credentials (anna.partners cookies). NEVER commit.
+.env
+.env.*
+
 # OS / editor
 .DS_Store
 .idea/
