@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Sync a minted tool_id across the four files that carry it.
+"""Sync a minted tool_id across the three files that carry it.
 
 Usage:
     python scripts/set-tool-id.py apply --tool tool-<yourhandle>-truman-director-<hash>
 
-After minting at https://anna.partners/executa, run this so pyproject.toml,
-executa.json, plugin.py and bundle/app.js all agree on the real tool_id.
-`anna-app apps publish` invokes the same logic automatically; this script is
-for manual sync / local dev.
+After minting at https://anna.partners/executa, run this so pyproject.toml
+(both the package ``name`` and the console-script entry) plus executa.json and
+bundle/app.js all agree on the real tool_id. The plugin itself carries no id:
+it is the *callee* — the host spawns it by the console-script name, and the
+id is needed only on the caller side (bundle) and the declaration side
+(pyproject / executa.json). ``anna-app apps publish`` runs this same sync
+automatically; this script is for manual sync / local dev. Idempotent — safe
+to re-run after a re-mint.
 """
 
 from __future__ import annotations
@@ -30,11 +34,11 @@ FILES: dict[str, list[tuple[str, str]]] = {
     "executa.json": [
         (r'"tool_id":\s*"tool-[^"]*"', '"tool_id": "{tool_id}"'),
     ],
-    "src/truman_director/plugin.py": [
-        (r"tool_id:\s*tool-[A-Za-z0-9_-]+", "tool_id: {tool_id}"),
-    ],
     "bundle/app.js": [
-        (r'"tool-DEV-truman-director-xxxxxxxx"', '"{tool_id}"'),
+        # The only `tool-...` string literal in the bundle (the dev fallback
+        # in EXECUTA_TOOL_ID). Match any tool_id, not the hardcoded DEV literal,
+        # so re-running after a re-mint still works.
+        (r'"tool-[A-Za-z0-9_-]+"', '"{tool_id}"'),
     ],
 }
 
