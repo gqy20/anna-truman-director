@@ -40,11 +40,25 @@ def test_health_reports_ok():
 
 
 def test_initialize_negotiates_v2_with_capabilities():
-    resp = _rpc({"jsonrpc": "2.0", "id": 1, "method": "initialize"})[0]
+    resp = _rpc(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2.0"}}
+    )[0]
     result = resp["result"]
     assert result["protocolVersion"] == "2.0"
+    # client_capabilities is what unlocks the host's reverse-RPC gates. Its
+    # absence on sampling is exactly what hung ticks on the platform — lock it.
+    assert result["client_capabilities"]["sampling"] == {}
+    assert result["client_capabilities"]["storage"]["kv"] is True
     assert result["capabilities"]["storage"]["kv"] is True
     assert result["capabilities"]["sampling"]["enabled"] is True
+
+
+def test_initialize_v1_host_gets_no_client_capabilities():
+    """A v1 host gets no client_capabilities — sampling stays disabled in-process."""
+    resp = _rpc(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "1.1"}}
+    )[0]
+    assert resp["result"]["client_capabilities"] == {}
 
 
 def test_unknown_method_returns_error():

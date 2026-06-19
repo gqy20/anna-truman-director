@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from executa_sdk import (
+    PROTOCOL_VERSION_V1,
     PROTOCOL_VERSION_V2,
     SamplingClient,
     SamplingError,
@@ -32,8 +33,8 @@ from executa_sdk import (
 
 from . import __version__
 from .engine import apply_inject_event, tick
-from .errors import WorldNotInitializedError
-from .scenarios import build
+from .errors import InvalidWorldSpecError, TrumanError, WorldNotInitializedError
+from .scenarios import build, build_from_spec
 from .state import WorldState
 from .storage import save
 
@@ -55,6 +56,7 @@ MANIFEST: dict[str, Any] = {
             "parameters": [
                 {"name": "action", "type": "string", "required": True},
                 {"name": "scenario", "type": "string", "required": False},
+                {"name": "spec", "type": "object", "required": False},
                 {"name": "n", "type": "integer", "required": False},
                 {"name": "event", "type": "object", "required": False},
             ],
@@ -86,8 +88,14 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
     global _world
 
     if action == "init":
-        scenario = kwargs["scenario"]
-        world = build(scenario, datetime.now(UTC))
+        spec = kwargs.get("spec")
+        scenario = kwargs.get("scenario")
+        if spec:
+            world = build_from_spec(spec, datetime.now(UTC))
+        elif scenario:
+            world = build(scenario, datetime.now(UTC))
+        else:
+            raise InvalidWorldSpecError("init requires 'scenario' (preset) or 'spec' (custom)")
         # Seed occupants from each agent's starting location.
         for agent in world.agents.values():
             loc = world.locations.get(agent.current_location_id)
@@ -95,7 +103,7 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
                 loc.occupants.add(agent.id)
         await save(_storage, world.snapshot())
         _world = world
-        return {"scenario": scenario, "tick": 0, "world_time": world.world_time}
+        return {"scenario": world.scenario, "tick": 0, "world_time": world.world_time}
 
     if _world is None:
         raise WorldNotInitializedError("call action='init' first")
@@ -145,19 +153,39 @@ async def _handle_invoke(req_id: Any, params: dict) -> None:
         _ok(req_id, {"success": True, "tool": tool, "data": data})
     except (StorageError, SamplingError) as exc:
         _err(req_id, exc.code, exc.message, getattr(exc, "data", None))
+    except TrumanError as exc:  # business error: surface its declared code (-32001/-32002/-32003)
+        _err(req_id, exc.code, str(exc))
     except Exception as exc:  # protocol framing: surface as a JSON-RPC error response
         _err(req_id, -32000, f"{type(exc).__name__}: {exc}")
 
 
-def _handle_initialize(req_id: Any) -> None:
+def _handle_initialize(req_id: Any, params: dict) -> None:
+    # Negotiate the host's protocol version. Sampling requires v2; on a v1 host
+    # we disable sampling in-process so any tick surfaces a loud SamplingError
+    # instead of hanging or silently degrading (CLAUDE.md red line 4).
+    proto = (params or {}).get("protocolVersion") or PROTOCOL_VERSION_V1
+    if proto != PROTOCOL_VERSION_V2:
+        _sampling.disable(
+            f"host offered protocolVersion={proto!r}; "
+            "sampling/createMessage requires Executa protocol 2.0"
+        )
     _ok(
         req_id,
         {
-            "protocolVersion": PROTOCOL_VERSION_V2,
+            "protocolVersion": PROTOCOL_VERSION_V2 if proto == PROTOCOL_VERSION_V2 else proto,
             "serverInfo": {
                 "name": MANIFEST["display_name"],
                 "version": MANIFEST["version"],
             },
+            # client_capabilities declares what WE will use as a reverse-RPC
+            # originator. Without client_capabilities.sampling the host's Nexus
+            # gate ignores sampling/createMessage → engine.decide()'s await hangs
+            # to the SDK timeout (the "Matrix Agent never came back" symptom on
+            # the platform). storage.kv is declared too — we persist via storage/*.
+            "client_capabilities": (
+                {"sampling": {}, "storage": {"kv": True}} if proto == PROTOCOL_VERSION_V2 else {}
+            ),
+            # capabilities is the server-side capability notice (informational).
             "capabilities": {
                 "storage": {"kv": True, "files": True},
                 "sampling": {"enabled": True},
@@ -183,7 +211,7 @@ def _stdin_loop() -> None:
             req_id = msg.get("id")
             params = msg.get("params") or {}
             if method == "initialize":
-                _handle_initialize(req_id)
+                _handle_initialize(req_id, params)
             elif method == "describe":
                 # result MUST be the manifest itself — host reads data["name"].
                 _ok(req_id, MANIFEST)

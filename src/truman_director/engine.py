@@ -60,6 +60,9 @@ _PROMPTS = _load_prompts()
 SYSTEM_PROMPT: str = _PROMPTS["sampling"]["system_prompt"]
 
 MAX_TOKENS = 1024
+# Wall-clock cap per sampling call. Matches the sampling-summarizer reference and
+# bounds how long a single tick can hang if the host stalls (SDK default is 90s).
+SAMPLING_TIMEOUT = 60.0
 
 
 async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
@@ -81,6 +84,7 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
                 "schema": DECISION_SCHEMA,
             },
         },
+        timeout=SAMPLING_TIMEOUT,
     )
     # Host returns content.text as a string — parse it ourselves. The schema
     # asks for {"events": [...]}, but some hosts unwrap the single-property
