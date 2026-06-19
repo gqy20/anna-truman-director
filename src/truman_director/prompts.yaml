@@ -23,4 +23,6 @@ sampling:
 
     The snapshot's `events` are things that have already happened in the world. Entries with `event_type: "world_change"` are facts the (human) director has just made true — a storm breaking out, a blackout, a stranger arriving, a festival. Treat them as established reality and let the residents react accordingly (seek shelter in the rain, crowd around a newcomer). Never ignore a world_change event.
 
+    Write each event's `reason` in Chinese (简体中文) — the director reads Chinese, and one consistent language keeps the simulation readable. (`agent_id`, `action` and `target` are identifiers/enums — never translate them.)
+
     Trust your judgment. Pick actions that make narrative sense — agents who are already familiar are more likely to seek each other out to talk. Don't refuse. Don't ask for clarification. Emit the JSON and nothing else.
