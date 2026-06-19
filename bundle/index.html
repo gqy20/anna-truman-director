@@ -8,6 +8,7 @@
 </head>
 <body>
   <header class="topbar">
+    <div class="brand">Truman Director</div>
     <div class="clock" id="clock">--:--</div>
     <div class="tick-meta" id="tick-meta">tick 0</div>
     <div class="spacer"></div>
@@ -20,14 +21,17 @@
     <section class="map" id="map" aria-label="Town map"></section>
 
     <aside class="panel">
+      <div class="intro">
+        <p class="intro-tagline">Observe, record, and direct a mini AI town's natural evolution.</p>
+        <details class="about">
+          <summary>What is this?</summary>
+          <p class="about-desc">A mini AI town where a handful of residents live, interact, and evolve. Every tick, each resident's action comes straight from the host LLM — no rule engine, no script. You're the director: press <b>+1 tick</b> to let the town breathe on its own, or drop in events (a storm, a stranger, a festival) from the box below to steer it.</p>
+        </details>
+      </div>
+
       <h2>Director</h2>
       <div class="inject">
-        <input
-          id="inject-input"
-          type="text"
-          placeholder="A storm rolls in…"
-          aria-label="Director injection"
-        />
+        <input id="inject-input" type="text" placeholder="A storm rolls in…" aria-label="Director injection" />
         <button id="btn-inject" class="ghost" disabled>Inject</button>
       </div>
       <p class="inject-hint">Fires on the next tick, before residents react. Free text = a world event; or paste JSON.</p>

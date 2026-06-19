@@ -36,6 +36,7 @@ body { display: flex; flex-direction: column; height: 100vh; }
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
+.brand { font-size: 14px; font-weight: 700; padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--line); }
 .clock { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tick-meta { color: var(--muted); font-size: 13px; }
 .spacer { flex: 1; }
@@ -162,6 +163,16 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 .inject input:focus { outline: none; border-color: var(--accent); }
 .inject button { white-space: nowrap; }
 .inject-hint { font-size: 11px; color: var(--muted); margin: 6px 0 0; line-height: 1.4; }
+
+/* intro / about — short tagline + collapsible long description */
+.intro { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.intro-tagline { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--ink); }
+.about > summary { cursor: pointer; list-style: none; font-size: 11px; color: var(--muted); }
+.about > summary::-webkit-details-marker { display: none; }
+.about > summary::before { content: "▸ "; }
+.about[open] > summary::before { content: "▾ "; }
+.about-desc { font-size: 12px; line-height: 1.55; color: var(--ink); margin: 8px 0 0; }
+.about-desc b { color: var(--accent-2); }
 
 .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .timeline li {
