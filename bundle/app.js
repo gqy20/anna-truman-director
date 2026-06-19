@@ -180,20 +180,43 @@ async function sendToDirector(text) {
     if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
     // Execute actions through the deterministic tick() path. Cap tick N — each
     // tick = one decide() LLM call, big jumps hit the 10 req/min quota + lag.
+    let acted = false;
     for (const act of result.actions) {
       if (act.op === "init" && !world) {
         world = cafeTown();
         seedOccupants(world);
         await anna.storage.set({ key: WORLD_KEY, value: snapshot(world) });
         enableTick(true); // world is now live — enable the tick/inject buttons
+        acted = true;
       } else if (act.op === "tick" && act.n && world) {
         await tick(anna, world, Math.min(Math.max(1, act.n), 8));
+        acted = true;
       } else if (act.op === "inject" && act.reason && world) {
         applyInjectEvent(world, { reason: act.reason });
         await tick(anna, world, 1); // consume the injection this tick
+        acted = true;
       }
     }
-    if (result.actions.length) await refresh();
+    if (acted) {
+      await refresh();
+      // Re-narrate from the FRESH snapshot so the story matches the world.
+      // The first narrative was based on the pre-action state (or her plan);
+      // the world simulator (decide() inside tick) is the authority on what
+      // residents actually did. This second turn reads the real new state.
+      try {
+        const after = await directorDecide(
+          anna,
+          snapshot(world),
+          chatHistory,
+          "（系统:你触发的动作已执行,世界已刷新。请基于最新世界快照,用 2-3 句简短叙述现在小镇的状态和刚发生的事。actions 必须为 []。）",
+        );
+        if (after.narrative) {
+          annaMsg.textContent = after.narrative;
+          chatHistory.push({ role: "assistant", content: after.narrative });
+          if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
+        }
+      } catch { /* keep the pre-action narrative if re-narration fails */ }
+    }
     setStatus(
       result.actions.length ? `Anna 推进了 ${result.actions.length} 个动作。` : "Anna 已回复。",
       "ok",
