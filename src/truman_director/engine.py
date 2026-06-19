@@ -1,0 +1,151 @@
+"""Tick engine — the model-driven simulation loop.
+
+The ONLY place the LLM is called. ``decide`` asks the host model what every
+agent does this tick; ``tick`` advances time, applies the returned events
+(plus any director injections) and persists the snapshot. No heuristics, no
+fallback, no registry.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from datetime import UTC, datetime
+
+from executa_sdk import SamplingClient
+
+from .state import WorldState
+from .storage import save
+
+# ── decision: the single LLM call ──────────────────────────────────────
+
+# MCP-style structured-output schema. The host enforces: serialized ≤32KB,
+# depth ≤8, ≤512 nodes, name matching ^[a-zA-Z0-9_-]{1,64}$.
+DECISION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "events": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "agent_id": {"type": "string"},
+                    "action": {"enum": ["move", "rest", "work", "talk"]},
+                    "target": {"type": ["string", "null"]},
+                    "reason": {"type": "string"},
+                },
+                "required": ["agent_id", "action", "reason"],
+            },
+        },
+    },
+    "required": ["events"],
+}
+
+SYSTEM_PROMPT = (
+    "You are the director of a small simulated town. "
+    "Each tick (5 simulated minutes) you receive a JSON snapshot of the world "
+    "(current_time, locations with occupants and types, agents with occupation/personality, "
+    "recent events) and emit a JSON array `events` describing what each agent does.\n\n"
+    "`events` is `[{agent_id, action, target, reason}, ...]`:\n"
+    "- `action` is one of: `move`, `rest`, `work`, `talk`\n"
+    "- `target` is a `location_id` (move/work) or `agent_id` (talk), `null` for `rest`\n"
+    "- `reason` is a short natural-language justification\n\n"
+    "Trust your judgment. Pick actions that make narrative sense. "
+    "Don't refuse. Don't ask for clarification. Emit the JSON and nothing else."
+)
+
+MAX_TOKENS = 1024
+
+
+async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
+    """Ask the model what every agent should do this tick. Returns the raw events list."""
+    result = await sampling.create_message(
+        system_prompt=SYSTEM_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": {"type": "text", "text": json.dumps(world_view, ensure_ascii=False)},
+            }
+        ],
+        max_tokens=MAX_TOKENS,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "truman_tick_decision",
+                "strict": True,
+                "schema": DECISION_SCHEMA,
+            },
+        },
+    )
+    # Host returns content.text as a string — parse it ourselves.
+    content = result["content"]
+    text = content.get("text", "") if isinstance(content, dict) else content
+    return json.loads(text)["events"]
+
+
+# ── reactor: advance time, apply, persist ──────────────────────────────
+
+
+async def tick(
+    world: WorldState,
+    sampling,  # SamplingClient
+    storage,  # StorageClient
+    n: int = 1,
+) -> list[dict]:
+    """Advance *n* ticks. Returns a list of per-tick result dicts."""
+    results = []
+    for _ in range(n):
+        world.advance_tick()
+        world_view = world.snapshot()
+
+        # Drain pending director injections before asking the model.
+        injections = world._pending_injections[:]
+        world._pending_injections.clear()
+
+        events = await decide(sampling, world_view)
+        events.extend(injections)
+
+        for evt in events:
+            world.apply_event(evt)
+            world.record_event(evt)
+
+        await save(storage, world.snapshot())
+
+        results.append(
+            {
+                "tick": world.current_tick,
+                "world_time": world.world_time,
+                "events": events,
+            }
+        )
+    return results
+
+
+def apply_inject_event(world: WorldState, event_spec: dict) -> dict:
+    """Queue a director-injected event to fire at the next tick."""
+    injection_id = f"inj_{uuid.uuid4().hex[:8]}"
+    world._pending_injections.append(
+        {
+            "id": injection_id,
+            "effective_tick": world.current_tick + 1,
+            "queued_at": datetime.now(UTC).isoformat(),
+            "spec": event_spec,
+            **_coerce_injection(event_spec),
+        }
+    )
+    return {
+        "injection_id": injection_id,
+        "effective_tick": world.current_tick + 1,
+        "message": f"event queued; fires at tick {world.current_tick + 1}",
+    }
+
+
+def _coerce_injection(spec: dict) -> dict:
+    """Normalise a director injection into a decision-event shape."""
+    return {
+        "agent_id": spec.get("agent_id"),
+        "action": spec.get("action", "world_change"),
+        "target": spec.get("target"),
+        "reason": spec.get("reason", spec.get("description", "director injection")),
+        "importance": spec.get("importance", 0.9),
+    }

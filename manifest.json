@@ -1,0 +1,59 @@
+{
+  "schema": 2,
+  "permissions": [
+    "tools.invoke",
+    "chat.write_message",
+    "storage.read",
+    "storage.write"
+  ],
+  "required_executas": [
+    {
+      "tool_id": "bundled:truman-director",
+      "min_version": "0.1.0",
+      "version": "latest"
+    }
+  ],
+  "optional_executas": [],
+  "system_prompt_addendum": "The user has the Truman Director app open. The truman-director Executa is the source of truth for the simulated town — call it with method='world' and action='tick' to advance time, action='init' to (re)start a scenario, action='inject_event' to drop in a director event. The bundle renders the world; you narrate what happens between ticks.",
+  "user_message_prefix_template": "[Truman] {user_message}",
+  "tags": ["simulation", "social", "director", "ai-town"],
+  "ui": {
+    "bundle": {
+      "format": "static-spa",
+      "entry": "index.html",
+      "external_origins": []
+    },
+    "views": [
+      {
+        "name": "main",
+        "title": "Truman Town",
+        "default": true,
+        "entry": "index.html",
+        "min_size": { "w": 520, "h": 600 },
+        "default_size": { "w": 720, "h": 820 },
+        "max_size": { "w": 1200, "h": 1200 },
+        "resizable": true,
+        "movable": true,
+        "single_instance": true,
+        "icon": "icon.svg"
+      }
+    ],
+    "host_api": {
+      "storage": ["get", "set", "list", "delete"],
+      "tools": ["required:bundled:truman-director"],
+      "chat": ["write_message"],
+      "window": ["set_title"]
+    },
+    "csp_overrides": {
+      "img-src": ["'self'", "data:", "blob:"],
+      "font-src": ["'self'", "data:"],
+      "style-src": ["'self'"],
+      "script-src": ["'self'"]
+    },
+    "state_merge": "last_writer_wins"
+  },
+  "dev": {
+    "fixtures": ["fixtures/*.jsonl"],
+    "user_id": 1
+  }
+}

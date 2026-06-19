@@ -1,0 +1,32 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format .
+        language: system
+        types: [python]
+
+      - id: ruff-check
+        name: ruff check --fix
+        entry: uv run ruff check . --fix
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest -q
+        entry: uv run pytest -q
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  # Enforce Conventional Commits on the commit message itself.
+  # Install the commit-msg hook alongside the pre-commit hook:
+  #   uv run pre-commit install --hook-type commit-msg
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]

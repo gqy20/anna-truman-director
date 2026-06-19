@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Truman Town</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="clock" id="clock">--:--</div>
+    <div class="tick-meta" id="tick-meta">tick 0</div>
+    <div class="spacer"></div>
+    <button id="btn-init" class="primary">Start town</button>
+    <button id="btn-tick" class="ghost" disabled>+1 tick</button>
+    <button id="btn-tick5" class="ghost" disabled>+5 ticks</button>
+  </header>
+
+  <main class="stage">
+    <section class="map" id="map" aria-label="Town map"></section>
+
+    <aside class="panel">
+      <h2>Timeline</h2>
+      <ol class="timeline" id="timeline"><li class="empty">No world yet. Press “Start town”.</li></ol>
+    </aside>
+  </main>
+
+  <p class="status" id="status"></p>
+
+  <!-- Loaded as a native ES module; imports the Anna App Runtime SDK. -->
+  <script src="app.js" type="module"></script>
+</body>
+</html>

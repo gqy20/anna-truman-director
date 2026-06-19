@@ -1,0 +1,51 @@
+[project]
+name = "tool-DEV-truman-director-xxxxxxxx"
+version = "0.1.0"
+description = "Truman Director — Executa stdio tool plugin for the Truman Town Anna App"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "gqy20", email = "qingyu_ge@foxmail.com" }]
+license = { text = "MIT" }
+dependencies = [
+    "executa-sdk>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+"tool-DEV-truman-director-xxxxxxxx" = "truman_director.plugin:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/truman_director"]
+
+# executa-sdk is a local path package (../anna-executa-examples/sdk/python),
+# not on PyPI. Point uv at the checkout on disk.
+[tool.uv.sources]
+executa-sdk = { path = "../anna-executa-examples/sdk/python" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "ASYNC"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-q"
