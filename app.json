@@ -1,9 +1,9 @@
 {
   "slug": "anna-truman-director",
   "name": "World Director",
-  "version": "0.1.2",
+  "version": "0.2.1",
   "tagline": "Observe, record, and direct a mini AI town's natural evolution.",
-  "description": "Truman Director is an experience-type Anna App. Users open it in Anna chat to observe and intervene in a mini AI town where a handful of residents live, interact, and evolve.\n\n**What's inside**\n\n- A static single-window UI (CSS Grid map + timeline + director panel).\n- A tick engine that lives entirely in the bundle (`bundle/world.js`) and runs on platform-native Host APIs — `anna.llm.complete` for resident decisions, `anna.storage` for the world snapshot. Every tick, agent actions come straight from the host LLM — no rule engine. No Executa, no Matrix Agent: fully cloud-hosted, the user opens it and plays with zero local dependencies.",
+  "description": "World Director is an experience-type Anna App. Users open it in Anna chat to observe and intervene in a mini AI town where a handful of residents live, interact, and evolve.\n\n**What's inside**\n\n- A static single-window UI (CSS Grid map + timeline + director panel).\n- A tick engine that lives entirely in the bundle (`bundle/world.js`) and runs on platform-native Host APIs — `anna.llm.complete` for resident decisions, `anna.storage` for the world snapshot. Every tick, agent actions come straight from the host LLM — no rule engine. No Executa, no Matrix Agent: fully cloud-hosted, the user opens it and plays with zero local dependencies.",
   "category": "entertainment",
   "pricing_model": "free"
 }
