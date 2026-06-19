@@ -2,6 +2,7 @@
   "schema": 2,
   "permissions": [
     "tools.invoke",
+    "llm.complete",
     "chat.write_message",
     "storage.read",
     "storage.write"
@@ -42,6 +43,7 @@
       "storage": ["get", "set", "list", "delete"],
       "tools": ["required:bundled:truman-director"],
       "chat": ["write_message"],
+      "llm": ["complete"],
       "window": ["set_title"]
     },
     "csp_overrides": {
