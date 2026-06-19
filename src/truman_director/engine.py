@@ -77,10 +77,18 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
             },
         },
     )
-    # Host returns content.text as a string — parse it ourselves.
+    # Host returns content.text as a string — parse it ourselves. The schema
+    # asks for {"events": [...]}, but some hosts unwrap the single-property
+    # object and emit the bare array — accept either shape (both faithfully
+    # represent "what the agents do this tick"; neither is a degraded result).
     content = result["content"]
     text = content.get("text", "") if isinstance(content, dict) else content
-    return json.loads(text)["events"]
+    data = json.loads(text)
+    if isinstance(data, dict):
+        return data.get("events", [])
+    if isinstance(data, list):
+        return data
+    return []
 
 
 # ── reactor: advance time, apply, persist ──────────────────────────────
