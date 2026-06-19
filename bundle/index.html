@@ -20,6 +20,18 @@
     <section class="map" id="map" aria-label="Town map"></section>
 
     <aside class="panel">
+      <h2>Director</h2>
+      <div class="inject">
+        <input
+          id="inject-input"
+          type="text"
+          placeholder="A storm rolls in…"
+          aria-label="Director injection"
+        />
+        <button id="btn-inject" class="ghost" disabled>Inject</button>
+      </div>
+      <p class="inject-hint">Fires on the next tick, before residents react. Free text = a world event; or paste JSON.</p>
+
       <h2>Timeline</h2>
       <ol class="timeline" id="timeline"><li class="empty">No world yet. Press “Start town”.</li></ol>
     </aside>

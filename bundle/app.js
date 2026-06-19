@@ -1,28 +1,34 @@
-// Truman Director — bundle.
+// Truman Director — bundle (pure-cloud, P1).
 //
-// Reads the world snapshot straight from Anna Storage (`truman:run:world`)
-// and drives the simulation by invoking the truman-director Executa. The
-// bundle never thinks for the agents — every tick the host LLM decides.
+// The whole simulation lives in `./world.js` (the single source of truth,
+// ported from the Python engine). This bundle drives it using only platform-
+// native Host APIs: `anna.llm.complete` (resident decisions) and `anna.storage`
+// (the world snapshot). No Executa, no Matrix Agent — the town runs entirely
+// in the bundle / cloud.
 //
-// The minted tool_id is resolved at runtime from window.__ANNA_TOOL_IDS__
-// (written by `anna-app dev` / `apps publish`). The literal below is a dev
-// fallback when no sidecar is present.
+// The bundle never thinks for the agents: every tick the model decides. The
+// user advances time by pressing a button; Anna (the chat partner) is an
+// observer/advisor — she reads the world from storage and can suggest director
+// injections, which the user fires from this UI.
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
-
-const EXECUTA_HANDLE = "truman-director";
-const EXECUTA_TOOL_ID =
-  (typeof window !== "undefined" &&
-    window.__ANNA_TOOL_IDS__ &&
-    window.__ANNA_TOOL_IDS__[EXECUTA_HANDLE]) ||
-  "tool-qingyu_ge-anna-truman-director-sxah66uc";
+import {
+  WORLD_KEY,
+  cafeTown,
+  seedOccupants,
+  snapshot,
+  fromSnapshot,
+  tick,
+  applyInjectEvent,
+} from "./world.js";
 
 const SCENARIO = "cafe_town";
-const WORLD_KEY = "truman:run:world";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 let anna = null;
+let world = null; // in-memory WorldState; rehydrated from storage on boot/refresh
 
 // ─── boot ───────────────────────────────────────────────────────────
 
@@ -30,31 +36,35 @@ async function boot() {
   $("btn-init").addEventListener("click", onStart);
   $("btn-tick").addEventListener("click", () => onTick(1));
   $("btn-tick5").addEventListener("click", () => onTick(5));
+  $("btn-inject").addEventListener("click", onInject);
+  $("inject-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onInject();
+    }
+  });
 
   try {
     anna = await AnnaAppRuntime.connect();
-    setStatus("Connected. Press “Start town”.", "ok");
-    await refresh();
+    await hydrate();
+    if (world) {
+      enableTick(true);
+      setStatus(`Town reloaded — tick ${world.current_tick}.`, "ok");
+    } else {
+      setStatus("Connected. Press “Start town”.", "ok");
+    }
   } catch (err) {
     setStatus(`Runtime unavailable: ${err.message || err}`, "err");
   }
 }
 
-async function invokeWorld(args) {
-  const res = await anna.tools.invoke({
-    tool_id: EXECUTA_TOOL_ID,
-    method: "world",
-    args,
-  });
-  // Tolerate the runtime's return shapes: plugin envelope {success,data},
-  // call-API style {ok,result}, or a bare payload. Only treat an explicit
-  // falsy success/ok as failure.
-  const ok = res?.success ?? res?.ok ?? true;
-  const data = res?.data ?? res?.result ?? res;
-  if (!ok) {
-    throw new Error(res?.error || res?.message || "invoke failed");
-  }
-  return data;
+// Rehydrate the in-memory world from storage so a page refresh doesn't reset
+// the simulation (red line 2: storage is the single source of truth).
+async function hydrate() {
+  const r = await anna.storage.get({ key: WORLD_KEY });
+  const payload = r?.result ?? r;
+  const data = payload?.value ?? null;
+  world = data ? fromSnapshot(data) : null;
 }
 
 // ─── actions ────────────────────────────────────────────────────────
@@ -62,8 +72,11 @@ async function invokeWorld(args) {
 async function onStart() {
   if (!anna) return setStatus("Not connected.", "err");
   setStatus("Starting town…", "info");
+  enableTick(false);
   try {
-    await invokeWorld({ action: "init", scenario: SCENARIO });
+    world = cafeTown();
+    seedOccupants(world);
+    await anna.storage.set({ key: WORLD_KEY, value: snapshot(world) });
     await refresh();
     enableTick(true);
     setStatus("Town is live.", "ok");
@@ -73,21 +86,17 @@ async function onStart() {
 }
 
 async function onTick(n) {
-  if (!anna) return;
-  // Fast-forward as a loop of single-tick invokes: each invoke carries its own
-  // per-invoke sampling budget (max_calls), so this stays under it where one big
-  // `tick n=N` would blow it and leave a half-applied world. One render per tick
-  // also demos better than a fire-and-forget batch.
+  if (!anna || !world) return;
+  // Fast-forward as a loop of single-tick advances: one render per tick demos
+  // motion better than a fire-and-forget batch, and pacing keeps the UI
+  // responsive and eases rate limits.
   setStatus(`Advancing ${n} tick(s)…`, "info");
   enableTick(false);
   try {
-    let last = null;
-    for (let i = 0; i < n; i++) {
-      last = await invokeWorld({ action: "tick", n: 1 });
-      await refresh();
-      await sleep(280); // pacing — keeps the UI responsive, eases rate limits
-    }
-    setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
+    const results = await tick(anna, world, n);
+    await refresh();
+    const last = results.at(-1);
+    setStatus(`Advanced to tick ${last.tick} (${last.world_time}).`, "ok");
   } catch (err) {
     setStatus(`tick failed: ${err.message || err}`, "err");
   } finally {
@@ -95,12 +104,41 @@ async function onTick(n) {
   }
 }
 
+// Director injection: parse the input as a spec (full JSON) or fall back to a
+// free-text world_change (a storm breaking out, a stranger arriving). Queued
+// to fire at the next tick, BEFORE the model decides that tick — so residents
+// react in the same tick the director's hand lands.
+async function onInject() {
+  if (!anna || !world) return;
+  const raw = ($("inject-input").value || "").trim();
+  if (!raw) return;
+  let spec;
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    try {
+      spec = JSON.parse(raw);
+    } catch {
+      setStatus("Inject JSON malformed — treating as free text.", "info");
+      spec = { reason: raw };
+    }
+  } else {
+    spec = { reason: raw };
+  }
+  try {
+    const ack = applyInjectEvent(world, spec);
+    $("inject-input").value = "";
+    setStatus(`🎬 queued: “${spec.reason}” — fires at tick ${ack.effective_tick}.`, "info");
+  } catch (err) {
+    setStatus(`inject failed: ${err.message || err}`, "err");
+  }
+}
+
 // ─── render ─────────────────────────────────────────────────────────
+// Reads the snapshot straight from storage (the single source of truth) and
+// renders motion / conversation / director changes — never thinks for agents.
 
 async function refresh() {
   if (!anna) return;
   const r = await anna.storage.get({ key: WORLD_KEY });
-  // Tolerate {exists,value} | {ok,result:{exists,value}} | bare payload.
   const payload = r?.result ?? r;
   const world = payload?.value ?? null;
   if (!world) return;
@@ -198,8 +236,10 @@ function renderTimeline(world) {
 }
 
 function enableTick(on) {
+  // Tick AND inject both require a live in-memory world.
   $("btn-tick").disabled = !on;
   $("btn-tick5").disabled = !on;
+  $("btn-inject").disabled = !on;
 }
 
 function setStatus(msg, kind) {

@@ -145,6 +145,23 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
   overflow-y: auto;
 }
 .panel h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.panel h2:not(:first-child) { margin-top: 18px; }
+
+/* director injection box */
+.inject { display: flex; gap: 8px; }
+.inject input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.inject input:focus { outline: none; border-color: var(--accent); }
+.inject button { white-space: nowrap; }
+.inject-hint { font-size: 11px; color: var(--muted); margin: 6px 0 0; line-height: 1.4; }
 
 .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .timeline li {
