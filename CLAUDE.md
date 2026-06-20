@@ -4,6 +4,14 @@
 > 上层 `~/CLAUDE.md` 已规定：**用中文回答**、**禁用 web search**（改用 jina / web-reader / crawl-mcp 等 MCP）、**MCP 工具异步并行调用**。
 > 以下为本项目特有规范，二者叠加生效。技术标识符保留英文。
 
+> ## ⚠ 分支上下文（2026-06）
+>
+> 本仓库有**两条并存的产品线**：
+> - **`main` 分支 = 纯云版**（P1，已发布 0.2.2）：引擎活在 `bundle/world.js`，用 `anna.llm.complete` + `anna.storage`，零本地依赖。**下方正文（项目定位 / 红线 / 文件组织 / LLM 约定 …）以纯云 main 视角写成。**
+> - **`local-executa` 分支 = 本地 Executa 版**（focus-flow，0.3.0）：引擎是 `src/truman_director/` 的 Python stdio plugin，bundle 经 `anna.tools.invoke` 驱动，`decide` 走 `sampling/createMessage` + `json_schema strict`（纯云版结构性拿不到的可靠性能力）。**需 Matrix Agent 在线**。活跃架构与约束见文末「本地 Executa 版」一节。
+>
+> 你当前在 **`local-executa`** 分支。红线 1-5 的精神（模型唯一决策 / 单一真相 / 失败要响亮 / 不玩并发）两版同等适用；红线 3「单一编排入口」形态不同：纯云是 `bundle/world.js#tick()`，本地版是 plugin 的 `world` 工具分发器（`init`/`tick`/`inject_event`）—— 互不覆盖。
+
 ## 项目定位
 
 Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷你 AI 小镇模拟器。
@@ -103,9 +111,12 @@ uv run ruff format . && uv run ruff check .   # 格式化 + lint
 
 ---
 
-## 参考实现（`src/truman_director/`，**暂留、非活跃**）
+## 本地 Executa 版（`src/truman_director/`，`local-executa` 分支的活跃架构）
 
-P1 迁移前的 Executa stdio 架构，逻辑已 1:1 移植到 `bundle/world.js`。保留是为了 git 可回退与行为对比。**以下约束仅在维护该参考实现时生效**，与上面的活跃架构约束互不覆盖：
+> **`main` 分支**：此处是「暂留参考、非活跃」（P1 迁移前的 Executa stdio 架构，逻辑已 1:1 移植到 `bundle/world.js`，保留为可回退/对比）。
+> **`local-executa` 分支（本分支）**：此处是**活跃主线引擎** —— bundle 经 `anna.tools.invoke` 调用 plugin 的 `world` 工具，`decide` 用 `sampling/createMessage` + `json_schema strict`（纯云 `anna.llm.complete` 没有的能力）。端到端已验证（dev harness：init / tick / inject_event + 反向 RPC storage + 真实 host LLM）。**需用户 Matrix Agent 在线**，Agent 离线则全断。
+
+以下约束在维护 `src/truman_director/` 时生效，与上面纯云 bundle 的约束互不覆盖：
 
 - 扁平包结构：`plugin.py`（stdio JSON-RPC 主循环 + `world` 分发器）、`engine.py`（唯一 LLM 调用点 `decide`/`tick`/`apply_inject_event`）、`state.py`（`WorldState`）、`scenarios.py`（`cafe_town`）、`storage.py`（APS KV）、`errors.py`（`TrumanError` 体系）。依赖无环：`plugin → engine → {state, storage}`、`plugin → scenarios → {state, errors}`、`plugin → {state, storage, errors}`。
 - Python ≥ 3.12，`from __future__ import annotations`，PEP 604 联合；枚举一律 `StrEnum`；ruff line-length 100，规则集 `E F W I N UP B SIM RUF ASYNC`，忽略 `E501`；测试放宽 `tests/*` 忽略 `B` 与 `S101`。
