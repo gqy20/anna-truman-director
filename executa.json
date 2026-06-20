@@ -17,16 +17,23 @@
         "type": "binary",
         "binary_urls": {
           "darwin-arm64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.0/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
-            "sha256": "97a437ef439a862b89390456473a2aa9a417a6b4aba50abb8c03d5ea2126c14b",
-            "size": 8927638,
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.1/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
+            "sha256": "79638a8744cbeae57a0b018b3177711e022d57f58eb101788ef7311d710f4bfa",
+            "size": 8928748,
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "linux-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.0/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
-            "sha256": "565b4563ec6390e7c5f8ecf3496b73d1ae5d8d57da2ec52b05ab493bb79ab464",
-            "size": 22967962,
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.1/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
+            "sha256": "8729d6fe34901e2eba0a360e1411cb24bacd764f65ae071220bd882b4037d37e",
+            "size": 22969531,
+            "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
+            "format": "tar.gz"
+          },
+          "windows-x86_64": {
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.1/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
+            "sha256": "15434cfdf8d42e779a363dc5579aa8f307d51fc21188f4fa9f47ae6f502830c2",
+            "size": 9854208,
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           }
