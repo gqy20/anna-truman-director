@@ -52,10 +52,19 @@ rm -rf build dist "$OUT_DIR/staging-$PLATFORM"
 mkdir -p "$OUT_DIR/staging-$PLATFORM/bin"
 
 echo "==> Building single-file executable with PyInstaller"
-# --paths src roots the graph in our package; --collect-submodules pulls in
-# every submodule of truman_director + executa_sdk (the local path dep) so
-# PyInstaller's static analysis drops nothing.
-uv run --with pyinstaller python -m PyInstaller \
+# Use a pre-installed pyinstaller if present (CI sets up Python + pyinstaller
+# itself so it can pin a specific architecture — x64 on an Apple Silicon runner
+# for darwin-x86_64 via Rosetta 2); fall back to `uv run --with pyinstaller`
+# for local dev. --paths src roots the graph in our package; --collect-submodules
+# pulls in every submodule of truman_director + executa_sdk so nothing is dropped.
+run_pyinstaller() {
+  if command -v pyinstaller >/dev/null 2>&1; then
+    pyinstaller "$@"
+  else
+    uv run --with pyinstaller python -m PyInstaller "$@"
+  fi
+}
+run_pyinstaller \
   --onefile --clean --noupx \
   --name "$TOOL_ID" \
   --paths "$SRC_DIR" \
