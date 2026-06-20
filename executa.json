@@ -1,7 +1,7 @@
 {
   "slug": "anna-truman-director",
   "name": "Truman Director",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "executa_type": "tool",
   "description": "LLM-directed tick-based town simulator. The world tool exposes init | tick | inject_event; agent decisions are produced by the host LLM via sampling.",
 
@@ -10,11 +10,27 @@
   "enabled": true,
 
   "distribution": {
-    "active": "local",
+    "active": "binary",
     "profiles": {
-      "local": {
-        "type": "local",
-        "supports_protocol": true
+      "local": { "type": "local", "supports_protocol": true },
+      "binary": {
+        "type": "binary",
+        "binary_urls": {
+          "darwin-arm64": {
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.0/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
+            "sha256": "97a437ef439a862b89390456473a2aa9a417a6b4aba50abb8c03d5ea2126c14b",
+            "size": 8927638,
+            "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
+            "format": "tar.gz"
+          },
+          "linux-x86_64": {
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.0/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
+            "sha256": "565b4563ec6390e7c5f8ecf3496b73d1ae5d8d57da2ec52b05ab493bb79ab464",
+            "size": 22967962,
+            "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
+            "format": "tar.gz"
+          }
+        }
       }
     }
   },
