@@ -154,7 +154,7 @@ wheels = [
 
 [[package]]
 name = "tool-qingyu-ge-anna-truman-director-sxah66uc"
-version = "0.3.0"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
     { name = "executa-sdk" },
