@@ -34,14 +34,19 @@ PY
 )"
 [ -n "$TOOL_ID" ] || { echo "ERROR: executa.json has no tool_id" >&2; exit 1; }
 
-# Detect platform → Anna platform key.
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-case "$ARCH" in x86_64|amd64) ARCH=x86_64;; arm64|aarch64) ARCH=arm64;; esac
-case "$OS-$ARCH" in
-  darwin-arm64|darwin-x86_64|linux-x86_64) PLATFORM="$OS-$ARCH" ;;
-  *) echo "ERROR: unsupported platform: $OS-$ARCH (targets: darwin-arm64, darwin-x86_64, linux-x86_64)" >&2; exit 1 ;;
-esac
+# Platform key (Anna: darwin-arm64 / darwin-x86_64 / linux-x86_64).
+# Prefer $PLATFORM env when set — CI builds on runners whose `uname -m` reports
+# the host arch, not the target (a macos-15 ARM runner reports arm64 even when
+# targeting x86_64). Local dev leaves it unset → auto-detect via uname.
+if [ -z "${PLATFORM:-}" ]; then
+  OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  ARCH="$(uname -m)"
+  case "$ARCH" in x86_64|amd64) ARCH=x86_64;; arm64|aarch64) ARCH=arm64;; esac
+  case "$OS-$ARCH" in
+    darwin-arm64|darwin-x86_64|linux-x86_64) PLATFORM="$OS-$ARCH" ;;
+    *) echo "ERROR: unsupported platform: $OS-$ARCH (targets: darwin-arm64, darwin-x86_64, linux-x86_64)" >&2; exit 1 ;;
+  esac
+fi
 
 echo "Tool ID:  $TOOL_ID"
 echo "Version:  $VERSION"

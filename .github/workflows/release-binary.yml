@@ -6,13 +6,13 @@
 # or run manually from the Actions tab. After the Release is published, copy
 # each platform's .tar.gz URL (+ sha256) into the Anna platform Tool config
 # (Multi-platform Binary URLs) — binary_urls are NOT kept in executa.json;
-# configure them on the platform UI (forum topic 140), or via `anna-app apps
-# publish` once the platform CLI supports pinning them.
+# configure them on the platform UI (forum topic 140).
 #
-# Platform matrix mirrors anna-executa-examples' anna-app-publish.yml: macOS
-# x86_64 builds on an Apple Silicon runner (macos-15) via Rosetta 2 with an x64
-# Python — GitHub is retiring the Intel `macos-13` runner, which leaves jobs
-# queued forever waiting for a runner.
+# darwin-x86_64 is intentionally NOT built: doing it on an Apple Silicon runner
+# (macos-15) via Rosetta 2 produced an arm64 binary in practice (PyInstaller
+# ran on the host's arm64 python, not the x64 one), and GitHub has retired the
+# Intel macos-13 runner. Intel Macs are a tiny share in 2026 — re-add
+# darwin-x86_64 only if a reliable cross-compile path turns up.
 
 name: release-binary
 
@@ -31,9 +31,8 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - { os: macos-14,      name: darwin-arm64,  python_arch: "" }
-          - { os: macos-15,      name: darwin-x86_64, python_arch: x64 }
-          - { os: ubuntu-latest, name: linux-x86_64,  python_arch: "" }
+          - { os: macos-14,      name: darwin-arm64 }
+          - { os: ubuntu-latest, name: linux-x86_64 }
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout app repo
@@ -42,32 +41,29 @@ jobs:
           path: anna-truman-director
 
       # executa-sdk is a local path dep (pyproject [tool.uv.sources]:
-      # ../anna-executa-examples/sdk/python). Check it out beside the app so
-      # the relative path resolves on a clean runner.
+      # ../anna-executa-examples/sdk/python). Check it out beside the app.
       - name: Checkout executa-sdk (local path dep)
         uses: actions/checkout@v7
         with:
           repository: whtcjdtc2007/anna-executa-examples
           path: anna-executa-examples
 
-      # architecture: x64 on macos-15 makes setup-python install an x64
-      # interpreter (via Rosetta 2) → PyInstaller emits a darwin-x86_64 binary.
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          architecture: ${{ matrix.platform.python_arch }}
 
       - name: Install pyinstaller + SDK + pyyaml
         run: |
           python -m pip install --upgrade pip pyinstaller pyyaml
           python -m pip install ./anna-executa-examples/sdk/python
 
-      # package_binary.sh detects the pre-installed pyinstaller (above) and
-      # uses it directly; --paths src lets it find truman_director without a
-      # pip install of the project itself.
+      # PLATFORM env pins the Anna platform key — package_binary.sh uses it
+      # instead of `uname -m` (which reports the runner's host arch).
       - name: Pack binary
         working-directory: anna-truman-director
+        env:
+          PLATFORM: ${{ matrix.platform.name }}
         run: bash scripts/package_binary.sh
 
       - name: Upload artifact
