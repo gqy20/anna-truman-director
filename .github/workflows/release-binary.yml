@@ -9,10 +9,8 @@
 # configure them on the platform UI (forum topic 140).
 #
 # darwin-x86_64 is intentionally NOT built: doing it on an Apple Silicon runner
-# (macos-15) via Rosetta 2 produced an arm64 binary in practice (PyInstaller
-# ran on the host's arm64 python, not the x64 one), and GitHub has retired the
-# Intel macos-13 runner. Intel Macs are a tiny share in 2026 — re-add
-# darwin-x86_64 only if a reliable cross-compile path turns up.
+# (macos-15) via Rosetta 2 produced an arm64 binary in practice, and GitHub has
+# retired the Intel macos-13 runner. Intel Macs are a tiny share in 2026.
 
 name: release-binary
 
@@ -31,8 +29,9 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - { os: macos-14,      name: darwin-arm64 }
-          - { os: ubuntu-latest, name: linux-x86_64 }
+          - { os: macos-14,       name: darwin-arm64 }
+          - { os: ubuntu-latest,  name: linux-x86_64 }
+          - { os: windows-latest, name: windows-x86_64 }
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout app repo
@@ -54,14 +53,17 @@ jobs:
           python-version: "3.12"
 
       - name: Install pyinstaller + SDK + pyyaml
+        shell: bash
         run: |
           python -m pip install --upgrade pip pyinstaller pyyaml
           python -m pip install ./anna-executa-examples/sdk/python
 
       # PLATFORM env pins the Anna platform key — package_binary.sh uses it
-      # instead of `uname -m` (which reports the runner's host arch).
+      # instead of `uname -m`. shell: bash so the same script runs on Windows
+      # (git-bash) as on mac/linux.
       - name: Pack binary
         working-directory: anna-truman-director
+        shell: bash
         env:
           PLATFORM: ${{ matrix.platform.name }}
         run: bash scripts/package_binary.sh

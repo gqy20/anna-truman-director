@@ -10,6 +10,10 @@
 #
 # Output: dist-anna/<tool_id>-<platform>.tar.gz
 #   layout: bin/<tool_id>  +  manifest.json   (entrypoint = bin/<tool_id>)
+#
+# Windows note: CI runs this under git-bash. `python3` is usually absent there
+# (only `python`), and `shasum`/`sha256sum` may be missing — so we pick the
+# Python command and compute sha256 via Python (cross-platform).
 
 set -euo pipefail
 
@@ -24,27 +28,29 @@ OUT_DIR="dist-anna"
 [ -f "$ENTRY_FILE" ]   || { echo "ERROR: $ENTRY_FILE not found" >&2; exit 1; }
 command -v pyinstaller >/dev/null 2>&1 || command -v uv >/dev/null 2>&1 || { echo "ERROR: need pyinstaller (CI) or uv (local dev)" >&2; exit 1; }
 
+# Python interpreter: python3 on mac/linux, python on windows git-bash.
+PY="$(command -v python3 >/dev/null 2>&1 && echo python3 || echo python)"
+
 # Read metadata from executa.json (no hard-coding tool_id in the script).
-eval "$(python3 - "$EXECUTA_JSON" <<'PY'
+eval "$($PY - "$EXECUTA_JSON" <<'PYEOF'
 import json, sys, shlex
 d = json.load(open(sys.argv[1], encoding="utf-8"))
 for k, default in [("tool_id", ""), ("version", "0.0.0"), ("name", ""), ("description", "")]:
     print(f"{k.upper()}={shlex.quote(str(d.get(k) or default))}")
-PY
+PYEOF
 )"
 [ -n "$TOOL_ID" ] || { echo "ERROR: executa.json has no tool_id" >&2; exit 1; }
 
-# Platform key (Anna: darwin-arm64 / darwin-x86_64 / linux-x86_64).
+# Platform key (Anna: darwin-arm64 / darwin-x86_64 / linux-x86_64 / windows-x86_64).
 # Prefer $PLATFORM env when set — CI builds on runners whose `uname -m` reports
-# the host arch, not the target (a macos-15 ARM runner reports arm64 even when
-# targeting x86_64). Local dev leaves it unset → auto-detect via uname.
+# the host arch, not the target. Local dev leaves it unset → auto-detect.
 if [ -z "${PLATFORM:-}" ]; then
   OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
   ARCH="$(uname -m)"
   case "$ARCH" in x86_64|amd64) ARCH=x86_64;; arm64|aarch64) ARCH=arm64;; esac
   case "$OS-$ARCH" in
     darwin-arm64|darwin-x86_64|linux-x86_64) PLATFORM="$OS-$ARCH" ;;
-    *) echo "ERROR: unsupported platform: $OS-$ARCH (targets: darwin-arm64, darwin-x86_64, linux-x86_64)" >&2; exit 1 ;;
+    *) echo "ERROR: unsupported platform: $OS-$ARCH (set PLATFORM env on CI)" >&2; exit 1 ;;
   esac
 fi
 
@@ -58,8 +64,7 @@ mkdir -p "$OUT_DIR/staging-$PLATFORM/bin"
 
 echo "==> Building single-file executable with PyInstaller"
 # Use a pre-installed pyinstaller if present (CI sets up Python + pyinstaller
-# itself so it can pin a specific architecture — x64 on an Apple Silicon runner
-# for darwin-x86_64 via Rosetta 2); fall back to `uv run --with pyinstaller`
+# so it can pick a specific arch); fall back to `uv run --with pyinstaller`
 # for local dev. --paths src roots the graph in our package; --collect-submodules
 # pulls in every submodule of truman_director + executa_sdk so nothing is dropped.
 run_pyinstaller() {
@@ -92,7 +97,7 @@ cp "$BINARY" "$STAGE/bin/$TOOL_ID"
 chmod 0755 "$STAGE/bin/$TOOL_ID"
 
 echo "==> Writing archive manifest"
-python3 - "$STAGE/manifest.json" "$TOOL_ID" "$VERSION" "$NAME" "$DESCRIPTION" <<'PY'
+$PY - "$STAGE/manifest.json" "$TOOL_ID" "$VERSION" "$NAME" "$DESCRIPTION" <<'PYEOF'
 import json, sys
 from pathlib import Path
 manifest_path, tool_id, version, display_name, description = sys.argv[1:6]
@@ -110,17 +115,14 @@ manifest = {
     },
 }
 Path(manifest_path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-PY
+PYEOF
 
 ARCHIVE="$OUT_DIR/$TOOL_ID-$PLATFORM.tar.gz"
 echo "==> Creating archive: $ARCHIVE"
 ( cd "$STAGE" && tar czf "../$TOOL_ID-$PLATFORM.tar.gz" . )
 
-if command -v shasum >/dev/null 2>&1; then
-  SHA256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
-else
-  SHA256="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
-fi
+# sha256 via Python (cross-platform — no shasum/sha256sum on windows git-bash).
+SHA256="$($PY -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$ARCHIVE")"
 SIZE="$(wc -c < "$ARCHIVE" | tr -d ' ')"
 
 echo
