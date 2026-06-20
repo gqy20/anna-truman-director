@@ -1,35 +1,34 @@
-// Truman Director — bundle (pure-cloud, P1).
+// Truman Director — bundle (local-Executa, focus-flow).
 //
-// The whole simulation lives in `./world.js` (the single source of truth,
-// ported from the Python engine). This bundle drives it using only platform-
-// native Host APIs: `anna.llm.complete` (resident decisions) and `anna.storage`
-// (the world snapshot). No Executa, no Matrix Agent — the town runs entirely
-// in the bundle / cloud.
+// Drives the simulation by invoking the truman-director Executa (the Python
+// stdio plugin in src/truman_director/) over anna.tools.invoke. The bundle
+// never thinks for the agents — every tick the host LLM decides inside the
+// plugin's decide() (with a strict json_schema response_format, which the
+// pure-cloud anna.llm.complete path can't do). The bundle only renders — it
+// reads the snapshot the plugin writes to `truman:run:world` — and drives time
+// forward. Conversation / direction is handled by the platform Anna in the
+// MAIN chat window (see manifest system_prompt_addendum), NOT by an in-bundle
+// Anna. This needs the local Matrix Agent online (the Executa is its child).
 //
-// The bundle never thinks for the agents: every tick the model decides. The
-// user advances time by pressing a button; Anna (the chat partner) is an
-// observer/advisor — she reads the world from storage and can suggest director
-// injections, which the user fires from this UI.
+// The minted tool_id is resolved at runtime from window.__ANNA_TOOL_IDS__
+// (written by `anna-app dev` / `apps publish`). The literal below is a dev
+// fallback when no sidecar is present.
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
-import {
-  WORLD_KEY,
-  cafeTown,
-  seedOccupants,
-  snapshot,
-  fromSnapshot,
-  tick,
-  applyInjectEvent,
-  directorDecide,
-} from "./world.js";
+
+const EXECUTA_HANDLE = "truman-director";
+const EXECUTA_TOOL_ID =
+  (typeof window !== "undefined" &&
+    window.__ANNA_TOOL_IDS__ &&
+    window.__ANNA_TOOL_IDS__[EXECUTA_HANDLE]) ||
+  "tool-qingyu_ge-anna-truman-director-sxah66uc";
 
 const SCENARIO = "cafe_town";
+const WORLD_KEY = "truman:run:world";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 let anna = null;
-let world = null; // in-memory WorldState; rehydrated from storage on boot/refresh
 
 // ─── boot ───────────────────────────────────────────────────────────
 
@@ -44,36 +43,36 @@ async function boot() {
       onInject();
     }
   });
-  $("btn-chat-send").addEventListener("click", onSendChat);
-  $("chat-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onSendChat();
-    }
-  });
 
   try {
     anna = await AnnaAppRuntime.connect();
-    enableChat(true);
-    await hydrate();
-    if (world) {
+    const live = await refresh();
+    if (live) {
       enableTick(true);
-      setStatus(`Town reloaded — tick ${world.current_tick}.`, "ok");
+      setStatus(`Town reloaded — ${$("tick-meta").textContent}.`, "ok");
     } else {
-      setStatus("Connected. 和 Anna 说“开个小镇”,或按 Start town。", "ok");
+      setStatus("Connected. 按 “Start town”,或在主聊天窗让 Anna 帮你开个小镇。", "ok");
     }
   } catch (err) {
     setStatus(`Runtime unavailable: ${err.message || err}`, "err");
   }
 }
 
-// Rehydrate the in-memory world from storage so a page refresh doesn't reset
-// the simulation (red line 2: storage is the single source of truth).
-async function hydrate() {
-  const r = await anna.storage.get({ key: WORLD_KEY });
-  const payload = r?.result ?? r;
-  const data = payload?.value ?? null;
-  world = data ? fromSnapshot(data) : null;
+async function invokeWorld(args) {
+  const res = await anna.tools.invoke({
+    tool_id: EXECUTA_TOOL_ID,
+    method: "world",
+    args,
+  });
+  // Tolerate the runtime's return shapes: plugin envelope {success,data},
+  // call-API style {ok,result}, or a bare payload. Only treat an explicit
+  // falsy success/ok as failure.
+  const ok = res?.success ?? res?.ok ?? true;
+  const data = res?.data ?? res?.result ?? res;
+  if (!ok) {
+    throw new Error(res?.error || res?.message || "invoke failed");
+  }
+  return data;
 }
 
 // ─── actions ────────────────────────────────────────────────────────
@@ -83,9 +82,7 @@ async function onStart() {
   setStatus("Starting town…", "info");
   enableTick(false);
   try {
-    world = cafeTown();
-    seedOccupants(world);
-    await anna.storage.set({ key: WORLD_KEY, value: snapshot(world) });
+    await invokeWorld({ action: "init", scenario: SCENARIO });
     await refresh();
     enableTick(true);
     setStatus("Town is live.", "ok");
@@ -95,17 +92,21 @@ async function onStart() {
 }
 
 async function onTick(n) {
-  if (!anna || !world) return;
-  // Fast-forward as a loop of single-tick advances: one render per tick demos
-  // motion better than a fire-and-forget batch, and pacing keeps the UI
-  // responsive and eases rate limits.
+  if (!anna) return;
+  // Fast-forward as a loop of single-tick invokes: each invoke carries its own
+  // per-invoke sampling budget (max_calls), so this stays under it where one big
+  // `tick n=N` would blow it and leave a half-applied world. One render per tick
+  // also demos better than a fire-and-forget batch.
   setStatus(`Advancing ${n} tick(s)…`, "info");
   enableTick(false);
   try {
-    const results = await tick(anna, world, n);
-    await refresh();
-    const last = results.at(-1);
-    setStatus(`Advanced to tick ${last.tick} (${last.world_time}).`, "ok");
+    let last = null;
+    for (let i = 0; i < n; i++) {
+      last = await invokeWorld({ action: "tick", n: 1 });
+      await refresh();
+      await sleep(280); // pacing — keeps the UI responsive, eases rate limits
+    }
+    setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
   } catch (err) {
     setStatus(`tick failed: ${err.message || err}`, "err");
   } finally {
@@ -114,11 +115,11 @@ async function onTick(n) {
 }
 
 // Director injection: parse the input as a spec (full JSON) or fall back to a
-// free-text world_change (a storm breaking out, a stranger arriving). Queued
-// to fire at the next tick, BEFORE the model decides that tick — so residents
-// react in the same tick the director's hand lands.
+// free-text world_change (a storm breaking out, a stranger arriving). The
+// plugin queues it to fire at the next tick, BEFORE the model decides that
+// tick — so residents react in the same tick the director's hand lands.
 async function onInject() {
-  if (!anna || !world) return;
+  if (!anna) return;
   const raw = ($("inject-input").value || "").trim();
   if (!raw) return;
   let spec;
@@ -133,110 +134,14 @@ async function onInject() {
     spec = { reason: raw };
   }
   try {
-    const ack = applyInjectEvent(world, spec);
+    const ack = await invokeWorld({ action: "inject_event", event: spec });
     $("inject-input").value = "";
-    setStatus(`🎬 queued: “${spec.reason}” — fires at tick ${ack.effective_tick}.`, "info");
+    setStatus(
+      `🎬 queued: “${spec.reason ?? JSON.stringify(spec)}” — fires at tick ${ack.effective_tick}.`,
+      "info",
+    );
   } catch (err) {
     setStatus(`inject failed: ${err.message || err}`, "err");
-  }
-}
-
-// ─── director chat (anna.llm.complete) ──────────────────────────────
-// The in-bundle "director Anna": each turn we hand the LLM the world snapshot
-// + recent chat history + the user's line, and it returns {narrative, actions}.
-// She narrates + suggests; the bundle applies any actions through the SAME
-// tick() path (red line 1 — the LLM only suggests, the bundle code applies).
-// (Tried anna.agent.session first — its <act>-tag protocol was unreliable; the
-// JSON contract over llm.complete mirrors decide() which is 8/8 solid.)
-
-const chatHistory = []; // [{role, content}] across turns, bounded below
-
-function appendChat(role, text) {
-  const log = $("chat-log");
-  const empty = log.querySelector(".chat-empty");
-  if (empty) empty.remove();
-  const msg = document.createElement("div");
-  msg.className = `chat-msg ${role}`;
-  msg.textContent = text;
-  log.appendChild(msg);
-  log.scrollTop = log.scrollHeight;
-  return msg;
-}
-
-async function sendToDirector(text) {
-  if (!anna) return; // world may be null — the director can create it via {op:"init"}
-  appendChat("user", text);
-  setStatus("Anna 正在想……", "info");
-  const annaMsg = appendChat("anna", "");
-  annaMsg.classList.add("streaming");
-  try {
-    const result = await directorDecide(anna, world ? snapshot(world) : null, chatHistory, text);
-    annaMsg.classList.remove("streaming");
-    annaMsg.textContent = result.narrative || "(…)";
-    chatHistory.push(
-      { role: "user", content: text },
-      { role: "assistant", content: result.narrative || "" },
-    );
-    if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
-    // Execute actions through the deterministic tick() path. Cap tick N — each
-    // tick = one decide() LLM call, big jumps hit the 10 req/min quota + lag.
-    let acted = false;
-    for (const act of result.actions) {
-      if (act.op === "init" && !world) {
-        world = cafeTown();
-        seedOccupants(world);
-        await anna.storage.set({ key: WORLD_KEY, value: snapshot(world) });
-        enableTick(true); // world is now live — enable the tick/inject buttons
-        acted = true;
-      } else if (act.op === "tick" && act.n && world) {
-        await tick(anna, world, Math.min(Math.max(1, act.n), 8));
-        acted = true;
-      } else if (act.op === "inject" && act.reason && world) {
-        applyInjectEvent(world, { reason: act.reason });
-        await tick(anna, world, 1); // consume the injection this tick
-        acted = true;
-      }
-    }
-    if (acted) {
-      await refresh();
-      // Re-narrate from the FRESH snapshot so the story matches the world.
-      // The first narrative was based on the pre-action state (or her plan);
-      // the world simulator (decide() inside tick) is the authority on what
-      // residents actually did. This second turn reads the real new state.
-      try {
-        const after = await directorDecide(
-          anna,
-          snapshot(world),
-          chatHistory,
-          "（系统:你触发的动作已执行,世界已刷新。请基于最新世界快照,用 2-3 句简短叙述现在小镇的状态和刚发生的事。actions 必须为 []。）",
-        );
-        if (after.narrative) {
-          annaMsg.textContent = after.narrative;
-          chatHistory.push({ role: "assistant", content: after.narrative });
-          if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
-        }
-      } catch { /* keep the pre-action narrative if re-narration fails */ }
-    }
-    setStatus(
-      result.actions.length ? `Anna 推进了 ${result.actions.length} 个动作。` : "Anna 已回复。",
-      "ok",
-    );
-  } catch (err) {
-    annaMsg.classList.remove("streaming");
-    annaMsg.textContent = "⚠ " + (err.message || err);
-    setStatus(`Anna 出错: ${err.message || err}`, "err");
-  }
-}
-
-async function onSendChat() {
-  const text = ($("chat-input").value || "").trim();
-  if (!text) return;
-  $("chat-input").value = "";
-  $("btn-chat-send").disabled = true;
-  try {
-    await sendToDirector(text);
-  } finally {
-    $("btn-chat-send").disabled = false;
   }
 }
 
@@ -245,15 +150,17 @@ async function onSendChat() {
 // renders motion / conversation / director changes — never thinks for agents.
 
 async function refresh() {
-  if (!anna) return;
+  if (!anna) return false;
   const r = await anna.storage.get({ key: WORLD_KEY });
+  // Tolerate {exists,value} | {ok,result:{exists,value}} | bare payload.
   const payload = r?.result ?? r;
   const world = payload?.value ?? null;
-  if (!world) return;
+  if (!world) return false;
   $("clock").textContent = world.world_time;
   $("tick-meta").textContent = `tick ${world.current_tick}`;
   renderMap(world);
   renderTimeline(world);
+  return true;
 }
 
 // ─── scene derivation (snapshot → recent moves / talks / world_change) ─
@@ -344,14 +251,10 @@ function renderTimeline(world) {
 }
 
 function enableTick(on) {
-  // Tick + inject need a live world. Director chat doesn't — it can create one.
+  // Tick + inject need a live world.
   $("btn-tick").disabled = !on;
   $("btn-tick5").disabled = !on;
   $("btn-inject").disabled = !on;
-}
-
-function enableChat(on) {
-  $("btn-chat-send").disabled = !on;
 }
 
 function setStatus(msg, kind) {

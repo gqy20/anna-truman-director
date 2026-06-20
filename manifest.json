@@ -1,14 +1,21 @@
 {
   "schema": 2,
   "permissions": [
+    "tools.invoke",
     "llm.complete",
     "chat.write_message",
     "storage.read",
     "storage.write"
   ],
-  "required_executas": [],
+  "required_executas": [
+    {
+      "tool_id": "bundled:truman-director",
+      "min_version": "0.1.0",
+      "version": "latest"
+    }
+  ],
   "optional_executas": [],
-  "system_prompt_addendum": "The user has the Truman Director app open. It is a fully cloud-hosted mini AI town: the whole simulation lives in the bundle and advances on platform-native Host APIs (anna.llm.complete for resident decisions, anna.storage for the world snapshot at key `truman:run:world`). There is no Executa to invoke — do NOT try to call any tool to advance the town. The user drives time forward by pressing the +1/+5 tick buttons in the UI.\n\nYour role is director and narrator, not the clock:\n- OBSERVE: read the world with `anna.storage.get({key:\"truman:run:world\"})` to see the current time, who is where, recent events, and how relationships are evolving. Read before you describe.\n- NARRATE: turn the cold snapshot into vivid story — what the residents are doing, how a conversation is going, what tensions are building. Use the residents' reasons (written in Chinese) as your cue.\n- SUGGEST, don't force: when the user wants to intervene (a storm, a stranger arriving, two people forced to meet), describe the injection in natural language and tell them to type it into the “Inject event” box and press a tick button. You cannot fire injections yourself — the user fires them from the UI, and they take effect on the next tick before the residents react.\n\nKeep your narration grounded in the snapshot. Don't invent residents, places, or events that aren't in storage. When unsure of the current state, read storage again.",
+  "system_prompt_addendum": "The user has the Truman Director (local) app open. The truman-director Executa is the source of truth for the simulated town — call it with method='world' and action='tick' to advance time, action='inject_event' to drop in a director event, and action='init' to (re)start the world. For init, EITHER pass scenario='cafe_town' for the preset town, OR pass spec={name, world_time(HH:MM), locations:[{id,name,type,x(0-100),y(0-100),capacity?,description?}], agents:[{id,name,occupation,home_location_id,current_location_id?,personality?}]} to build a custom town. When the user describes a world they want, ask a couple of clarifying questions (how many residents, what places, what tone), then assemble it into spec and call init once. The bundle renders the world; you narrate what happens between ticks. Note: this is the local-Executa edition — the Executa runs on the user's local Agent, so it needs the Agent online.",
   "user_message_prefix_template": "[Truman] {user_message}",
   "tags": ["simulation", "social", "director", "ai-town"],
   "ui": {
@@ -34,6 +41,7 @@
     ],
     "host_api": {
       "storage": ["get", "set", "list", "delete"],
+      "tools": ["required:bundled:truman-director"],
       "chat": ["write_message"],
       "llm": ["complete"],
       "window": ["set_title"]
