@@ -22,7 +22,7 @@ OUT_DIR="dist-anna"
 
 [ -f "$EXECUTA_JSON" ] || { echo "ERROR: $EXECUTA_JSON not found" >&2; exit 1; }
 [ -f "$ENTRY_FILE" ]   || { echo "ERROR: $ENTRY_FILE not found" >&2; exit 1; }
-command -v uv >/dev/null 2>&1 || { echo "ERROR: uv is required" >&2; exit 1; }
+command -v pyinstaller >/dev/null 2>&1 || command -v uv >/dev/null 2>&1 || { echo "ERROR: need pyinstaller (CI) or uv (local dev)" >&2; exit 1; }
 
 # Read metadata from executa.json (no hard-coding tool_id in the script).
 eval "$(python3 - "$EXECUTA_JSON" <<'PY'
