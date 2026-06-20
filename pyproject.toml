@@ -1,6 +1,6 @@
 [project]
 name = "tool-qingyu_ge-anna-truman-director-sxah66uc"
-version = "0.3.1"
+version = "0.3.2"
 description = "Truman Director — Executa stdio tool plugin for the Truman Town Anna App"
 readme = "README.md"
 requires-python = ">=3.12"

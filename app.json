@@ -1,7 +1,7 @@
 {
   "slug": "anna-truman-director-local",
   "name": "World Director (Local)",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "tagline": "Observe, record, and direct a mini AI town — local-Executa edition.",
   "description": "World Director (Local) is an experience-type Anna App. Users open it in Anna chat to observe and intervene in a mini AI town where a handful of residents live, interact, and evolve.\n\n**What's inside**\n\n- A static single-window UI (CSS Grid map + timeline + director panel).\n- `truman-director` — a bundled Python Executa that ticks the world and persists it to Anna Storage. Every tick, agent actions come straight from the host LLM via sampling with a strict json_schema response_format — no rule engine.\n- This is the local-Executa (focus-flow) edition: the Executa runs on the user's local Matrix Agent, so the Agent must be online. A separate pure-cloud edition (no Agent needed) lives on the main branch.",
   "category": "entertainment",
