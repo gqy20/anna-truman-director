@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout app repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: anna-truman-director
 
@@ -41,13 +41,13 @@ jobs:
       # the relative path resolves on a clean runner. Fork this repo and bump
       # the `repository:` below if you publish from your own account.
       - name: Checkout executa-sdk (local path dep)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: whtcjdtc2007/anna-executa-examples
           path: anna-executa-examples
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
 
       - name: Sync deps + pack binary
         working-directory: anna-truman-director
@@ -56,7 +56,7 @@ jobs:
           bash scripts/package_binary.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.platform }}
           path: anna-truman-director/dist-anna/*.tar.gz
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Gather all platform artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist-anna
           merge-multiple: true
@@ -78,7 +78,7 @@ jobs:
           for f in *.tar.gz; do sha256sum "$f" > "$f.sha256"; done
 
       - name: Attach to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist-anna/*.tar.gz
