@@ -1,7 +1,7 @@
 {
   "slug": "anna-truman-director",
   "name": "Truman Director",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "executa_type": "tool",
   "description": "LLM-directed tick-based town simulator. The world tool exposes init | tick | inject_event; agent decisions are produced by the host LLM via sampling.",
 
@@ -9,34 +9,5 @@
   "type": "python",
   "enabled": true,
 
-  "distribution": {
-    "active": "binary",
-    "profiles": {
-      "local": { "type": "local", "supports_protocol": true },
-      "binary": {
-        "type": "binary",
-        "executable_name": "tool-qingyu_ge-anna-truman-director-sxah66uc",
-        "supports_protocol": true,
-        "binary_urls": {
-          "darwin-arm64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.2/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
-            "entrypoint": "tool-qingyu_ge-anna-truman-director-sxah66uc",
-            "format": "tar.gz"
-          },
-          "linux-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.2/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
-            "entrypoint": "tool-qingyu_ge-anna-truman-director-sxah66uc",
-            "format": "tar.gz"
-          },
-          "windows-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.2/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
-            "entrypoint": "tool-qingyu_ge-anna-truman-director-sxah66uc",
-            "format": "tar.gz"
-          }
-        }
-      }
-    }
-  },
-
-  "_comment": "The publish metadata (slug/name/version/executa_type) is read by `anna-app apps publish`; the dev fields (tool_id/type/enabled) are read by `anna-app dev`. Run `python scripts/set-tool-id.py apply --tool <minted>` to rewrite the minted tool_id across pyproject.toml, executa.json and bundle/app.js once you mint one at https://anna.partners/executa. The plugin itself carries no tool_id — it is the callee, spawned by the console-script name. This dir is the `truman-director` handle referenced by app.json#bundled_executas."
+  "_comment": "Publish/dev metadata only — slug/name/version/executa_type are read by `anna-app apps publish`; tool_id/type/enabled are read by `anna-app dev`. Per forum topic 140, the multi-platform binary download URLs are NOT kept here: configure them on the Anna platform Tool config page (Multi-platform Binary URLs) with entrypoint = `bin/<tool_id>` (the archive ships `bin/<tool_id>` + `manifest.json`). Run `python scripts/set-tool-id.py apply --tool <minted>` to rewrite the minted tool_id across pyproject.toml, executa.json and bundle/app.js once you mint one at https://anna.partners/executa. The plugin itself carries no tool_id — it is the callee, spawned by the console-script name. This dir is the `truman-director` handle referenced by app.json#bundled_executas."
 }

@@ -8,9 +8,10 @@
 # (Multi-platform Binary URLs) — binary_urls are NOT kept in executa.json;
 # configure them on the platform UI (forum topic 140).
 #
-# darwin-x86_64 is intentionally NOT built: doing it on an Apple Silicon runner
-# (macos-15) via Rosetta 2 produced an arm64 binary in practice, and GitHub has
-# retired the Intel macos-13 runner. Intel Macs are a tiny share in 2026.
+# darwin-x86_64 is built on the native macos-15-intel runner (forum topic 140):
+# cross-building x64 on an Apple Silicon runner (macos-15 + python_arch:x64)
+# produced an arm64 binary in practice. windows-x86_64 is kept beyond the
+# topic-140 three-platform set because the author's Agent runs on Windows.
 
 name: release-binary
 
@@ -29,9 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - { os: macos-14,       name: darwin-arm64 }
-          - { os: ubuntu-latest,  name: linux-x86_64 }
-          - { os: windows-latest, name: windows-x86_64 }
+          - { os: macos-14,        name: darwin-arm64 }
+          - { os: macos-15-intel,  name: darwin-x86_64 }
+          - { os: ubuntu-latest,   name: linux-x86_64 }
+          - { os: windows-latest,  name: windows-x86_64 }
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout app repo
