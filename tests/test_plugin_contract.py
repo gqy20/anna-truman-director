@@ -9,8 +9,20 @@ with async fakes instead.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
+
+# The plugin is imported as ``truman_director`` from ``src/``. pytest picks this
+# up via ``pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]``, but
+# that setting is process-local — the subprocess launched below does NOT inherit
+# it. An editable install (``uv sync``) puts the package on the venv's
+# site-packages, which is why these tests pass in the dev venv today; but on a
+# clean interpreter without that install the subprocess would raise
+# ``ModuleNotFoundError: truman_director``. We inject ``src/`` explicitly into
+# the child's PYTHONPATH so the test is hermetic regardless of install state.
+_SRC_DIR = str(Path(__file__).resolve().parent.parent / "src")
 
 
 def _rpc(*requests: dict) -> list[dict]:
@@ -20,6 +32,7 @@ def _rpc(*requests: dict) -> list[dict]:
         capture_output=True,
         text=True,
         timeout=15,
+        env={**os.environ, "PYTHONPATH": _SRC_DIR},
     )
     lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
     return [json.loads(ln) for ln in lines]
