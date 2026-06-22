@@ -206,7 +206,14 @@ function renderMap(world) {
     node.style.left = `${loc.x}%`;
     node.style.top = `${loc.y}%`;
     const occupants = (loc.occupants || [])
-      .map((id) => world.agents[id]?.name || id)
+      .map((id) => {
+        const a = world.agents[id];
+        const name = a?.name || id;
+        // Surface current_activity (idle/work/rest) — work/rest are now real
+        // state, not log-only lines, so the map should show who's on shift.
+        const act = a?.current_activity;
+        return act && act !== "idle" ? `${name} · ${act}` : name;
+      })
       .join(", ");
     const moveBits = (movesAt[loc.id] || [])
       .map(

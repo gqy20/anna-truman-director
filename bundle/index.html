@@ -43,6 +43,8 @@
 
   <p class="status" id="status"></p>
 
+  <!-- tool_id mapping (handle → minted id) must load BEFORE app.js reads it -->
+  <script src="anna-tool-ids.js"></script>
   <!-- Loaded as a native ES module; imports the Anna App Runtime SDK. -->
   <script src="app.js" type="module"></script>
 </body>

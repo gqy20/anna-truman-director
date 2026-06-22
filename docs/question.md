@@ -1,5 +1,15 @@
 # World Director:架构三难与平台卡点
 
+> ⚠️ **历史存档(已废弃,2024 纯云版 0.2.2 的决策记录)。**
+> 本文档论证的「纯云 + 对话驱动 + 单 Anna」三难针对的是 **0.2.2 纯云版**(引擎活在 `bundle/world.js`,源码在 git `5fcdf61` 及之前)。该版本已并入本地 Executa 主线统一废弃,**当前架构以本地 Executa 为准**:
+> - 引擎活在 `src/truman_director/`(Python stdio plugin),bundle 只渲染 + 驱动时钟;
+> - 居民决策走 `engine.decide`(本地 Executa `sampling/createMessage` + json_schema strict);
+> - 当前版本的权威叙事见 `README.md` 与 `CLAUDE.md`。
+>
+> 本文档仅作历史决策回溯之用,其中的「当前状态」「已落地」描述**不再反映现实**。
+>
+> ---
+>
 > 给 Anna 平台团队(Hunter)/ 内部存档。
 > 核心:**纯云 + 对话驱动 + 单 Anna** 三个目标在当前平台**不可同时满足**,需要平台级升级才能打破。
 

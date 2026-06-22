@@ -38,14 +38,6 @@ class Relationship:
 
 
 @dataclass
-class Memory:
-    tick: int
-    content: str
-    importance: float = 0.5
-    memory_type: str = "observation"  # observation / interaction / reflection
-
-
-@dataclass
 class Agent:
     id: str
     name: str
@@ -53,7 +45,12 @@ class Agent:
     home_location_id: str
     current_location_id: str
     personality: dict = field(default_factory=dict)
-    memories: list[Memory] = field(default_factory=list)
+    # What the agent is doing right now: idle / work / rest. Set by apply_event
+    # on work|rest decisions; move|talk|world_change reset it to idle (a new
+    # action ends the previous activity). Before this existed, work|rest events
+    # left world state untouched — "alice is working" was only a timeline line,
+    # not a real state the model or UI could read back.
+    current_activity: str = "idle"
     relationships: dict[str, Relationship] = field(default_factory=dict)
 
 
@@ -98,6 +95,7 @@ def agent_from_dict(ad: dict) -> Agent:
         home_location_id=ad["home_location_id"],
         current_location_id=ad["current_location_id"],
         personality=ad.get("personality", {}),
+        current_activity=ad.get("current_activity", "idle"),
         relationships={
             rid: Relationship(
                 other_agent_id=rid,
@@ -108,6 +106,25 @@ def agent_from_dict(ad: dict) -> Agent:
             )
             for rid, rd in ad.get("relationships", {}).items()
         },
+    )
+
+
+def event_from_dict(ed: dict) -> Event:
+    """Parse one event dict (snapshot entry) into an Event.
+
+    Shares the parser with ``WorldState.from_snapshot``. ``snapshot()`` drops the
+    transient ``payload`` / ``created_at`` fields, so they fall back to the
+    dataclass defaults on the way back in — downstream never reads them.
+    """
+    return Event(
+        id=ed["id"],
+        tick=ed["tick"],
+        event_type=ed["event_type"],
+        actor_agent_id=ed.get("actor_agent_id"),
+        target_agent_id=ed.get("target_agent_id"),
+        location_id=ed.get("location_id"),
+        description=ed.get("description", ""),
+        importance=ed.get("importance", 0.5),
     )
 
 
@@ -158,6 +175,7 @@ class WorldState:
                     "home_location_id": a.home_location_id,
                     "current_location_id": a.current_location_id,
                     "personality": a.personality,
+                    "current_activity": a.current_activity,
                     "relationships": {
                         rid: {
                             "familiarity": rel.familiarity,
@@ -187,9 +205,15 @@ class WorldState:
 
     @classmethod
     def from_snapshot(cls, data: dict) -> WorldState:
-        """Reconstruct from APS KV payload (shares parsers with scenarios.build_from_spec)."""
+        """Reconstruct from APS KV payload (shares parsers with scenarios.build_from_spec).
+
+        Restores ``events`` too, so a plugin restart can resume the world with its
+        history intact — the snapshot is the single source of truth (CLAUDE.md red
+        line 2), and the in-memory events list is just its writable mirror.
+        """
         locations = {lid: location_from_dict(ld) for lid, ld in data.get("locations", {}).items()}
         agents = {aid: agent_from_dict(ad) for aid, ad in data.get("agents", {}).items()}
+        events = [event_from_dict(ed) for ed in data.get("events", [])]
 
         return cls(
             run_id=data["run_id"],
@@ -199,29 +223,34 @@ class WorldState:
             tick_minutes=data.get("tick_minutes", 5),
             locations=locations,
             agents=agents,
-            events=[],
+            events=events,
         )
 
     def apply_event(self, evt: dict) -> None:
-        """Apply a single decision event to world state."""
+        """Apply a single decision event to world state.
+
+        Every action the model can return (move|rest|work|talk, per
+        DECISION_SCHEMA) now mutates real state — there are no "log-only" actions.
+        move/talk/world_change reset the actor's activity to idle, since a new
+        action ends whatever they were doing; work/rest set it accordingly.
+        """
         agent_id = evt.get("agent_id")
         action = evt.get("action")
         target = evt.get("target")
+        agent = self.agents.get(agent_id) if agent_id else None
 
-        if action == "move" and agent_id and target:
-            agent = self.agents.get(agent_id)
-            if agent and target in self.locations:
-                old_loc = self.locations.get(agent.current_location_id)
-                if old_loc:
-                    old_loc.occupants.discard(agent_id)
-                new_loc = self.locations[target]
-                new_loc.occupants.add(agent_id)
-                agent.current_location_id = target
+        if action == "move" and agent and target in self.locations:
+            old_loc = self.locations.get(agent.current_location_id)
+            if old_loc:
+                old_loc.occupants.discard(agent_id)
+            new_loc = self.locations[target]
+            new_loc.occupants.add(agent_id)
+            agent.current_location_id = target
+            agent.current_activity = "idle"
 
-        elif action == "talk" and agent_id and target:
-            agent = self.agents.get(agent_id)
+        elif action == "talk" and agent and target:
             other = self.agents.get(target)
-            if agent and other:
+            if other:
                 # Bidirectional: a conversation makes both parties more familiar.
                 for who, other_id in ((agent, target), (other, agent_id)):
                     rel = who.relationships.setdefault(
@@ -229,6 +258,17 @@ class WorldState:
                     )
                     rel.familiarity = min(1.0, rel.familiarity + 0.05)
                     rel.last_interaction_tick = self.current_tick
+                agent.current_activity = "idle"
+                other.current_activity = "idle"
+
+        elif action == "work" and agent:
+            # Working pins the agent to their current location with an active
+            # activity flag — occupants don't change, but the state is now
+            # observable to the model and UI instead of being a log-only line.
+            agent.current_activity = "work"
+
+        elif action == "rest" and agent:
+            agent.current_activity = "rest"
 
     def record_event(self, evt: dict) -> None:
         event = Event(

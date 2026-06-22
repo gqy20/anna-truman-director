@@ -79,7 +79,7 @@ uv run truman-director  # 启动 stdio 插件（stderr 打印 "ready"）
 ### 测试、格式化、lint
 
 ```bash
-uv run pytest -q        # 18 个测试，asyncio_mode=auto
+uv run pytest -q        # 41 个测试，asyncio_mode=auto
 uv run ruff format .    # 格式化
 uv run ruff check .     # lint（E/F/W/I/N/UP/B/SIM/RUF/ASYNC）
 ```
@@ -122,6 +122,8 @@ docs(readme): document threading model
 
 ## 路线图
 
+- [x] work/rest 决策落地为真实状态（`Agent.current_activity`，地图与时间线可见）。
+- [x] 进程重启后从 APS KV 自动恢复世界（`load()` 接通，无需重新 init）。
 - [ ] 铸造正式的 `tool_id`，并通过 `anna-app dev` 跑通整个 App 的端到端流程。
 - [ ] 在 `cafe_town` 之外补充更多场景。
 - [ ] 更丰富的 bundle 渲染（关系、智能体对话）。
