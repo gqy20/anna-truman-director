@@ -36,7 +36,7 @@ from .engine import apply_inject_event, tick
 from .errors import InvalidWorldSpecError, TrumanError, WorldNotInitializedError
 from .scenarios import build, build_from_spec
 from .state import WorldState
-from .storage import save
+from .storage import load, save
 
 MANIFEST: dict[str, Any] = {
     "display_name": "Truman Director",
@@ -105,17 +105,27 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         _world = world
         return {"scenario": world.scenario, "tick": 0, "world_time": world.world_time}
 
+    if action != "tick" and action != "inject_event":
+        raise ValueError(f"unknown action: {action!r}")
+
+    # tick / inject_event need a live world. The plugin is a long-lived stdio
+    # child of the Matrix Agent — an Agent restart / redeploy / crash reboots
+    # this process and loses the module-level _world. The snapshot in APS KV is
+    # the single source of truth (CLAUDE.md red line 2), so on first access we
+    # restore _world from it instead of forcing the user to re-init. A missing
+    # snapshot is the only genuinely-uninitialized case → loud error. A storage
+    # call failure propagates as StorageError (red line 4 — never silent).
     if _world is None:
-        raise WorldNotInitializedError("call action='init' first")
+        snapshot = await load(_storage)
+        if snapshot is None:
+            raise WorldNotInitializedError("call action='init' first")
+        _world = WorldState.from_snapshot(snapshot)
 
     if action == "tick":
         n = kwargs.get("n", 1)
         return {"results": await tick(_world, _sampling, _storage, n)}
 
-    if action == "inject_event":
-        return apply_inject_event(_world, kwargs["event"])
-
-    raise ValueError(f"unknown action: {action!r}")
+    return apply_inject_event(_world, kwargs["event"])
 
 
 # ─── JSON-RPC framing ─────────────────────────────────────────────────
