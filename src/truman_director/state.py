@@ -7,6 +7,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 
+# Cap on the in-memory events list. ``snapshot()`` already feeds only the last
+# 20 events to the model, but without a cap the list grows without bound — a
+# long run (50-100 ticks * multiple events) would leak memory. 500 is much
+# larger than 20, so the buffer comfortably covers the snapshot window +
+# timeline (bundle shows 30) + any future event-replay feature, while keeping a
+# long run bounded.
+MAX_EVENTS = 500
+
 
 class LocationType(StrEnum):
     CAFE = "cafe"
@@ -282,3 +290,8 @@ class WorldState:
             importance=evt.get("importance", 0.5),
         )
         self.events.append(event)
+        # Bounded growth: keep only the most recent MAX_EVENTS. The snapshot
+        # window (20) and timeline (30) both read from the tail, so trimming the
+        # head never loses anything the model or UI can see.
+        if len(self.events) > MAX_EVENTS:
+            del self.events[:-MAX_EVENTS]

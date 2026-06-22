@@ -207,3 +207,25 @@ def test_old_snapshot_without_activity_defaults_to_idle():
         a.pop("current_activity", None)
     restored = WorldState.from_snapshot(snap)
     assert restored.agents["a"].current_activity == "idle"
+
+
+def test_events_list_is_bounded_by_max_events():
+    """The in-memory events list must not grow without bound on a long run.
+    Without the cap, 50-100 ticks * multiple events per tick would leak memory.
+    After exceeding MAX_EVENTS the oldest entries are trimmed; the snapshot
+    window (last 20) and timeline (last 30) both read from the tail, so they
+    are unaffected."""
+    from truman_director.state import MAX_EVENTS
+
+    world = _two_agent_world()
+    # Record well over the cap.
+    beyond = MAX_EVENTS + 50
+    for i in range(beyond):
+        world.record_event({"agent_id": "a", "action": "work", "reason": f"shift #{i}"})
+    assert len(world.events) == MAX_EVENTS
+    # The tail is preserved — the most recent event is the last one we recorded.
+    assert world.events[-1].description == f"shift #{beyond - 1}"
+    # The snapshot window is unaffected (still 20 most recent).
+    snap = world.snapshot()
+    assert len(snap["events"]) == 20
+    assert snap["events"][-1]["description"] == f"shift #{beyond - 1}"
