@@ -1,3 +1,3 @@
 """Truman Director — LLM-directed tick-based town simulator (Anna App Executa plugin)."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
