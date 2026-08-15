@@ -18,6 +18,8 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 
 一个 Anna App = `manifest.json` + `app.json` + `bundle/`（界面）+ `src/truman_director/`（引擎）+ `executa.json`（发布声明）。
 
+> **深化阶段设计契约**：`docs/DESIGN.md`（Design v0.5,2026-08-15）是路线权威——五层产品（内心世界/故事线/导演 2.0/时间与会话/分享）+ 呈现层原则与克制清单（§3.6）+ 架构决策 D1–D6 + 可观测性与测试（§13）+ 里程碑 M1/M2/M3。新功能先对照它的层次与红线修订章节，再动手；`docs/MVP.md` 降级为历史文档。
+
 ## 不可违背的核心原则（红线）
 
 改动代码前先逐条对照。任何与下列原则冲突的「优化」都不算优化。
