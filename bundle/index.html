@@ -46,6 +46,17 @@
 
   <p class="status" id="status"></p>
 
+  <!-- dramatic openings (M1.3): three one-tap starts offered right after init,
+       so the first minute of a fresh town has stakes -->
+  <div class="openings" id="openings" hidden>
+    <div class="openings-card">
+      <h3>今天,从哪一幕开始?</h3>
+      <p class="openings-hint">选一个开场,小镇会立刻演起来。也可以跳过,让镇子自己醒来。</p>
+      <div class="openings-list" id="openings-list"></div>
+      <button class="ghost" id="openings-skip">跳过,安静地开始</button>
+    </div>
+  </div>
+
   <!-- resident dossier (M1.4): opened by clicking an occupant chip on the map -->
   <div class="modal-backdrop" id="agent-modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="agent-name">

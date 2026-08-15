@@ -57,6 +57,13 @@ async function boot() {
     if (e.key === "Escape") $("agent-modal").hidden = true;
   });
 
+  // Dramatic openings (M1.3): one tap = inject + auto-run 3 ticks.
+  $("openings-list").addEventListener("click", (e) => {
+    const card = e.target.closest(".opening");
+    if (card?.dataset.openingId) pickOpening(card.dataset.openingId);
+  });
+  $("openings-skip").addEventListener("click", () => ($("openings").hidden = true));
+
   try {
     anna = await AnnaAppRuntime.connect();
     const live = await refresh();
@@ -99,8 +106,52 @@ async function onStart() {
     await refresh();
     enableTick(true);
     setStatus("Town is live.", "ok");
+    // First-minute stakes (M1.3): offer three dramatic openings instead of
+    // "watching people drink coffee". Failure to load openings is not fatal.
+    showOpenings().catch(() => {});
   } catch (err) {
     setStatus(`init failed: ${err.message || err}`, "err");
+  }
+}
+
+// ─── dramatic openings (M1.3) ────────────────────────────────────────
+
+async function showOpenings() {
+  const out = await invokeWorld({ action: "list_scenarios" });
+  const openings = out?.openings || [];
+  if (!openings.length) return;
+  const list = $("openings-list");
+  list.innerHTML = openings
+    .map(
+      (o) =>
+        `<button class="opening" data-opening-id="${escapeHtml(o.id)}">` +
+        `<b>${escapeHtml(o.title)}</b><span>${escapeHtml(o.hint)}</span></button>`,
+    )
+    .join("");
+  $("openings").hidden = false;
+}
+
+async function pickOpening(openingId) {
+  $("openings").hidden = true;
+  try {
+    const out = await invokeWorld({ action: "list_scenarios" });
+    const opening = (out?.openings || []).find((o) => o.id === openingId);
+    if (!opening) return;
+    setStatus(`🎬 开场:${opening.title} — 正在上演…`, "info");
+    enableTick(false);
+    await invokeWorld({ action: "inject_event", event: opening.event });
+    // Three sequential single-tick invokes (not n=3): each keeps its own
+    // sampling budget and its own ≤90s sync ceiling, matching onTick's loop.
+    for (let i = 0; i < 3; i++) {
+      await invokeWorld({ action: "tick", n: 1 });
+      await refresh();
+      await sleep(280);
+    }
+    setStatus(`开场已生效:${opening.title}。故事开始了。`, "ok");
+  } catch (err) {
+    setStatus(`opening failed: ${err.message || err}`, "err");
+  } finally {
+    enableTick(true);
   }
 }
 
