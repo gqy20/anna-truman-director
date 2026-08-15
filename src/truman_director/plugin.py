@@ -15,9 +15,13 @@ back through ``make_response_router``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import logging
+import os
 import sys
 import threading
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -37,6 +41,8 @@ from .errors import InvalidWorldSpecError, TrumanError, WorldNotInitializedError
 from .scenarios import build, build_from_spec
 from .state import WorldState
 from .storage import load, save
+
+_log = logging.getLogger("truman.plugin")
 
 MANIFEST: dict[str, Any] = {
     "display_name": "Truman Director",
@@ -120,6 +126,7 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         if snapshot is None:
             raise WorldNotInitializedError("call action='init' first")
         _world = WorldState.from_snapshot(snapshot)
+        _log.info("world restored from APS KV (run=%s tick=%s)", _world.run_id, _world.current_tick)
 
     if action == "tick":
         n = kwargs.get("n", 1)
@@ -156,17 +163,37 @@ async def _handle_invoke(req_id: Any, params: dict) -> None:
     if tool != "world":
         _err(req_id, -32601, f"unknown tool: {tool!r}")
         return
+    # Observability (DESIGN §13.2): every invoke logged in/out with duration.
+    # Args are logged as keys only — a custom spec can be large and is not
+    # something the log needs verbatim.
+    action = args.get("action")
+    t0 = time.monotonic()
+    _log.info("invoke start action=%s args=%s", action, sorted(args))
     try:
         data = await _tool_world(**args)
         # Host's InvokeResult.from_dict reads result["success"] (default False)
         # and result["data"] — the payload MUST be wrapped this way.
         _ok(req_id, {"success": True, "tool": tool, "data": data})
+        _log.info("invoke ok action=%s dur=%.0fms", action, (time.monotonic() - t0) * 1000)
     except (StorageError, SamplingError) as exc:
         _err(req_id, exc.code, exc.message, getattr(exc, "data", None))
+        _log.error(
+            "invoke fail action=%s code=%s dur=%.0fms",
+            action,
+            exc.code,
+            (time.monotonic() - t0) * 1000,
+        )
     except TrumanError as exc:  # business error: surface its declared code (-32001/-32002/-32003)
         _err(req_id, exc.code, str(exc))
+        _log.error(
+            "invoke fail action=%s code=%s dur=%.0fms",
+            action,
+            exc.code,
+            (time.monotonic() - t0) * 1000,
+        )
     except Exception as exc:  # protocol framing: surface as a JSON-RPC error response
         _err(req_id, -32000, f"{type(exc).__name__}: {exc}")
+        _log.exception("invoke fail action=%s dur=%.0fms", action, (time.monotonic() - t0) * 1000)
 
 
 def _handle_initialize(req_id: Any, params: dict) -> None:
@@ -175,6 +202,7 @@ def _handle_initialize(req_id: Any, params: dict) -> None:
     # instead of hanging or silently degrading (CLAUDE.md red line 4).
     proto = (params or {}).get("protocolVersion") or PROTOCOL_VERSION_V1
     if proto != PROTOCOL_VERSION_V2:
+        _log.warning("host offered protocolVersion=%s — sampling disabled in-process", proto)
         _sampling.disable(
             f"host offered protocolVersion={proto!r}; "
             "sampling/createMessage requires Executa protocol 2.0"
@@ -249,8 +277,29 @@ async def _main() -> None:
     await _stop.wait()
 
 
+def _configure_logging() -> None:
+    """stderr-only logging (DESIGN §13.1). stdout is the JSON-RPC channel — any
+    human-readable output there corrupts the protocol stream (official pitfall
+    #3), so the sole handler writes to stderr. Level via TRUMAN_LOG_LEVEL
+    (INFO in production, DEBUG when diagnosing). Windows consoles default to a
+    legacy code page — force UTF-8 so log lines with Chinese text can't crash
+    the stream writer."""
+    if sys.stderr.encoding and sys.stderr.encoding.lower().replace("-", "") != "utf8":
+        with contextlib.suppress(AttributeError, OSError):  # non-reconfigurable stream
+            sys.stderr.reconfigure(encoding="utf-8")
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s", datefmt="%H:%M:%S")
+    )
+    root = logging.getLogger("truman")
+    root.setLevel(os.environ.get("TRUMAN_LOG_LEVEL", "INFO").upper())
+    root.addHandler(handler)
+    root.propagate = False
+
+
 def main() -> None:
-    print(f"[truman-director] v{__version__} ready", file=sys.stderr)
+    _configure_logging()
+    _log.info("ready v%s", __version__)
     asyncio.run(_main())
 
 

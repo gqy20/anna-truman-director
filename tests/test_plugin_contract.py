@@ -77,3 +77,37 @@ def test_initialize_v1_host_gets_no_client_capabilities():
 def test_unknown_method_returns_error():
     resp = _rpc({"jsonrpc": "2.0", "id": 9, "method": "bogus"})[0]
     assert resp["error"]["code"] == -32601
+
+
+def test_stdout_is_pure_protocol_and_stderr_carries_logs():
+    """Channel discipline (DESIGN §13.1 / official pitfall #3): stdout must
+    contain ONLY JSON-RPC frames — any banner or log line there corrupts the
+    protocol stream; human-readable output belongs on stderr."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "truman_director.plugin"],
+        input=(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {"protocolVersion": "2.0"},
+                }
+            )
+            + "\n"
+            + json.dumps({"jsonrpc": "2.0", "id": 2, "method": "describe"})
+            + "\n"
+        ),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**os.environ, "PYTHONPATH": _SRC_DIR},
+    )
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    assert lines, "plugin must answer on stdout"
+    for ln in lines:  # every stdout line parses as a JSON-RPC frame
+        frame = json.loads(ln)
+        assert "jsonrpc" in frame and ("result" in frame or "error" in frame)
+    # the startup notice lands on stderr, not stdout
+    assert "ready" in proc.stderr
+    assert "[truman-director]" not in proc.stdout

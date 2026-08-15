@@ -9,6 +9,7 @@ fallback, no registry.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from executa_sdk import SamplingClient
 from .errors import TickBudgetExceededError
 from .state import WorldState
 from .storage import save
+
+_log = logging.getLogger("truman.engine")
 
 # ── decision: the single LLM call ──────────────────────────────────────
 
@@ -83,12 +86,13 @@ MAX_TICKS_PER_INVOKE = 8
 
 async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     """Ask the model what every agent should do this tick. Returns the raw events list."""
+    payload = json.dumps(world_view, ensure_ascii=False)
     result = await sampling.create_message(
         system_prompt=SYSTEM_PROMPT,
         messages=[
             {
                 "role": "user",
-                "content": {"type": "text", "text": json.dumps(world_view, ensure_ascii=False)},
+                "content": {"type": "text", "text": payload},
             }
         ],
         max_tokens=MAX_TOKENS,
@@ -109,9 +113,27 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     content = result["content"]
     text = content.get("text", "") if isinstance(content, dict) else content
     data = json.loads(text)
+    # Decision forensics (DESIGN §13.3): the model's choice is not reproducible,
+    # so every call logs its I/O sizes and the parse path taken. The bare-array
+    # shape is the known host quirk — WARNING makes its frequency observable.
     if isinstance(data, dict):
-        return data.get("events", [])
+        events = data.get("events", [])
+        _log.info(
+            "decide tick=%s prompt=%dB resp=%dB shape=dict events=%d",
+            world_view.get("current_tick"),
+            len(payload.encode("utf-8")),
+            len(text.encode("utf-8")) if isinstance(text, str) else -1,
+            len(events),
+        )
+        return events
     if isinstance(data, list):
+        _log.warning(
+            "decide tick=%s prompt=%dB resp=%dB shape=bare_array (host unwrapped schema) events=%d",
+            world_view.get("current_tick"),
+            len(payload.encode("utf-8")),
+            len(text.encode("utf-8")) if isinstance(text, str) else -1,
+            len(data),
+        )
         return data
     return []
 
@@ -151,6 +173,10 @@ async def tick(
         for inj in injections:
             world.apply_event(inj)
             world.record_event(inj)
+        if injections:
+            _log.info(
+                "tick=%s drained %d director injection(s)", world.current_tick, len(injections)
+            )
 
         world_view = world.snapshot()
         events = await decide(sampling, world_view)
@@ -173,6 +199,12 @@ async def tick(
 def apply_inject_event(world: WorldState, event_spec: dict) -> dict:
     """Queue a director-injected event to fire at the next tick."""
     injection_id = f"inj_{uuid.uuid4().hex[:8]}"
+    _log.info(
+        "injection queued id=%s effective_tick=%s action=%s",
+        injection_id,
+        world.current_tick + 1,
+        event_spec.get("action", "world_change"),
+    )
     world._pending_injections.append(
         {
             "id": injection_id,
