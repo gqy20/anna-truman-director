@@ -44,6 +44,19 @@ async function boot() {
     }
   });
 
+  // Resident dossier: occupant chips on the map open the modal (M1.4).
+  $("map").addEventListener("click", (e) => {
+    const chip = e.target.closest(".occupant");
+    if (chip?.dataset.agentId) showAgent(chip.dataset.agentId);
+  });
+  $("agent-close").addEventListener("click", () => ($("agent-modal").hidden = true));
+  $("agent-modal").addEventListener("click", (e) => {
+    if (e.target === $("agent-modal")) $("agent-modal").hidden = true;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("agent-modal").hidden = true;
+  });
+
   try {
     anna = await AnnaAppRuntime.connect();
     const live = await refresh();
@@ -251,9 +264,11 @@ function renderMap(world) {
         // Surface current_activity (idle/work/rest) — work/rest are now real
         // state, not log-only lines, so the map should show who's on shift.
         const act = a?.current_activity;
-        return act && act !== "idle" ? `${name} · ${act}` : name;
+        const label = act && act !== "idle" ? `${name} · ${act}` : name;
+        // Clickable chip → resident dossier (M1.4)
+        return `<span class="occupant" data-agent-id="${escapeHtml(id)}">${escapeHtml(label)}</span>`;
       })
-      .join(", ");
+      .join(" ");
     const moveBits = (movesAt[loc.id] || [])
       .map(
         (m) =>
@@ -287,13 +302,54 @@ function renderTimeline(world) {
     return;
   }
   tl.innerHTML = events
-    .map(
-      (e) =>
-        `<li><span class="ev-tick">t${e.tick}</span>` +
+    .map((e) => {
+      // 戏点高亮 (§3.6): director injections + high-importance beats — the
+      // deterministic signals, before narrate starts marking turns (M2).
+      const hot = e.event_type === "world_change" || (e.importance ?? 0) >= 0.8;
+      return (
+        `<li class="${hot ? "ev-hot" : ""}"><span class="ev-tick">t${e.tick}</span>` +
         `<span class="ev-type ev-${e.event_type}">${e.event_type}</span>` +
-        `<span class="ev-desc">${escapeHtml(e.description || e.reason || "")}</span></li>`,
-    )
+        `<span class="ev-desc">${escapeHtml(e.description || e.reason || "")}</span></li>`
+      );
+    })
     .join("");
+}
+
+// ─── resident dossier (M1.4) ─────────────────────────────────────────
+// Clicking an occupant chip opens the full dossier from get_agent —
+// goal (inner life), relationships with names, recent involvement.
+
+async function showAgent(agentId) {
+  const modal = $("agent-modal");
+  modal.hidden = false;
+  $("agent-name").textContent = "…";
+  try {
+    const d = await invokeWorld({ action: "get_agent", agent_id: agentId });
+    const a = d.agent;
+    $("agent-name").textContent = a.name;
+    $("agent-meta").textContent =
+      `${a.occupation} · ${a.current_activity} · at ${d.location?.name ?? "?"}`;
+    $("agent-goal").textContent = a.goal || "";
+    $("agent-goal").style.display = a.goal ? "" : "none";
+    $("agent-rels").innerHTML = (d.relationships || [])
+      .map(
+        (r) =>
+          `<li><span>${escapeHtml(r.name)}${r.last_interaction_tick ? ` · 上次交谈 t${r.last_interaction_tick}` : ""}</span>` +
+          `<span class="rel-familiar">熟识 ${(r.familiarity * 100).toFixed(0)}%</span></li>`,
+      )
+      .join("");
+    $("agent-events").innerHTML = (d.recent_events || [])
+      .slice()
+      .reverse()
+      .map(
+        (e) =>
+          `<li><span class="ev-tick">t${e.tick}</span>${escapeHtml(e.description || e.event_type)}</li>`,
+      )
+      .join("");
+  } catch (err) {
+    $("agent-name").textContent = agentId;
+    $("agent-meta").textContent = `get_agent failed: ${err.message || err}`;
+  }
 }
 
 function enableTick(on) {

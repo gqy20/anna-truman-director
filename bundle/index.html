@@ -46,6 +46,20 @@
 
   <p class="status" id="status"></p>
 
+  <!-- resident dossier (M1.4): opened by clicking an occupant chip on the map -->
+  <div class="modal-backdrop" id="agent-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="agent-name">
+      <button class="modal-close" id="agent-close" aria-label="Close">×</button>
+      <h3 id="agent-name">—</h3>
+      <p class="agent-meta" id="agent-meta"></p>
+      <p class="agent-goal" id="agent-goal"></p>
+      <h4>Relationships</h4>
+      <ul class="agent-rels" id="agent-rels"></ul>
+      <h4>Recent events</h4>
+      <ol class="agent-events" id="agent-events"></ol>
+    </div>
+  </div>
+
   <!-- tool_id mapping (handle → minted id) must load BEFORE app.js reads it -->
   <script src="anna-tool-ids.js"></script>
   <!-- Loaded as a native ES module; imports the Anna App Runtime SDK. -->

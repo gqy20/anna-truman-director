@@ -211,3 +211,78 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 .status.ok   { color: var(--accent-2); }
 .status.err  { color: #ff6b6b; }
 .status.info { color: var(--accent); }
+
+/* ─── 戏点高亮 (M1.4): director injections + high-importance beats ── */
+
+.timeline li.ev-hot {
+  border: 1px solid var(--accent);
+  background: rgba(124, 156, 255, 0.10);
+}
+.timeline li.ev-hot .ev-type { background: var(--accent); color: #0b0d12; font-weight: 600; }
+.ev-hot .ev-desc::before { content: "🎬 "; }
+
+/* occupant chips are clickable — they open the resident dossier */
+.occupant {
+  display: inline-block;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted);
+}
+.occupant:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ─── resident dossier modal ───────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 10, 0.66);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+.modal {
+  position: relative;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.modal h3 { margin: 0 0 4px; font-size: 18px; }
+.modal h4 { margin: 14px 0 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 2px 8px;
+}
+.agent-meta { margin: 0; font-size: 12px; color: var(--muted); }
+.agent-goal {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: rgba(124, 156, 255, 0.08);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.agent-rels { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.agent-rels li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  font-size: 12px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+.rel-familiar { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.agent-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.agent-events li { font-size: 12px; color: var(--ink); line-height: 1.45; }
+.agent-events .ev-tick { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
