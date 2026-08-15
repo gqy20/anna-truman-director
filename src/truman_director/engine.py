@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
-from executa_sdk import SamplingClient
+from executa_sdk import SamplingClient, emit_progress
 
 from .errors import TickBudgetExceededError
 from .state import MAX_STORIES, DayStory, WorldState, event_to_dict
@@ -293,6 +293,12 @@ async def tick(
                     "day_story": story,
                 }
             )
+            # Best-effort live notice for async jobs; dropped silently on a
+            # plain sync invoke (emit_progress never raises — red line safe).
+            emit_progress(
+                "tool_update",
+                {"kind": "day_story", "day": world.day - 1},
+            )
 
         results.append(
             {
@@ -301,6 +307,17 @@ async def tick(
                 "events": [*injections, *events],
             }
         )
+        if n > 1:  # progress only pays off on multi-tick runs
+            emit_progress(
+                "tool_update",
+                {
+                    "kind": "tick",
+                    "done": len(results),
+                    "total": n,
+                    "tick": world.current_tick,
+                    "world_time": world.world_time,
+                },
+            )
     return results
 
 

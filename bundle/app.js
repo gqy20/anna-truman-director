@@ -73,6 +73,8 @@ async function boot() {
     } else {
       setStatus("Connected. 按 “Start town”,或在主聊天窗让 Anna 帮你开个小镇。", "ok");
     }
+    // Re-adopt any tick job still running from before a reload (M1.6).
+    recoverJobs().catch(() => {});
   } catch (err) {
     setStatus(`Runtime unavailable: ${err.message || err}`, "err");
   }
@@ -155,26 +157,114 @@ async function pickOpening(openingId) {
   }
 }
 
+// ─── ticking: async job channel first, sync loop fallback (M1.6) ────
+// Multi-tick runs go through anna.tools.invokeAsyncAwait: one job carries the
+// whole run under its own deadline (sync invokes are hard-clamped to 90s), the
+// plugin emits executa/progress per tick, and a reload can re-adopt the job
+// via listJobs/getJob. Single ticks stay sync (fast, and the fallback path
+// keeps working on older hosts without the job channel).
+
+const CLIENT_TAG = "truman-director";
+
 async function onTick(n) {
   if (!anna) return;
-  // Fast-forward as a loop of single-tick invokes: each invoke carries its own
-  // per-invoke sampling budget (max_calls), so this stays under it where one big
-  // `tick n=N` would blow it and leave a half-applied world. One render per tick
-  // also demos better than a fire-and-forget batch.
   setStatus(`Advancing ${n} tick(s)…`, "info");
   enableTick(false);
   try {
-    let last = null;
-    for (let i = 0; i < n; i++) {
-      last = await invokeWorld({ action: "tick", n: 1 });
-      await refresh();
-      await sleep(280); // pacing — keeps the UI responsive, eases rate limits
+    if (n > 1 && typeof anna.tools?.invokeAsyncAwait === "function") {
+      await tickAsync(n);
+    } else {
+      await tickSync(n);
     }
-    setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
   } catch (err) {
-    setStatus(`tick failed: ${err.message || err}`, "err");
+    if (err?.code === "not_implemented" && n > 1) {
+      await tickSync(n); // older host without the job channel
+    } else {
+      setStatus(`tick failed: ${err.message || err}`, "err");
+    }
   } finally {
     enableTick(true);
+  }
+}
+
+async function tickAsync(n) {
+  const res = await anna.tools.invokeAsyncAwait(
+    {
+      tool_id: EXECUTA_TOOL_ID,
+      method: "world",
+      args: { action: "tick", n },
+      // Budget: generous margin over ticks (each ≤ one sampling call), min 60s
+      // (policy floor). Sync 90s ceiling doesn't apply to job deadlines.
+      timeoutMs: Math.max(60_000, 15_000 * n),
+      clientTag: CLIENT_TAG,
+    },
+    {
+      onProgress: (ev) => {
+        const d = ev?.data || {};
+        if (d.kind === "day_story") {
+          setStatus(`📖 第 ${d.day} 天的故事写好了。`, "info");
+        } else if (d.tick != null) {
+          setStatus(`推进中 t${d.tick}(day ${d.world_time ?? ""})…`, "info");
+        }
+        refresh().catch(() => {}); // snapshot already persisted per tick
+      },
+    },
+  );
+  await refresh();
+  const data = res?.data ?? res;
+  const results = data?.results || [];
+  const last = results.at(-1);
+  setStatus(`Advanced to tick ${last?.tick ?? "?"}.`, "ok");
+}
+
+async function tickSync(n) {
+  // Legacy path: loop of single-tick invokes — each carries its own sampling
+  // budget and stays under the 90s sync ceiling.
+  let last = null;
+  for (let i = 0; i < n; i++) {
+    last = await invokeWorld({ action: "tick", n: 1 });
+    await refresh();
+    await sleep(280); // pacing — keeps the UI responsive, eases rate limits
+  }
+  setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
+}
+
+// Reload recovery (M1.6): find OUR in-flight tick jobs and re-adopt them —
+// progress continues from lastSeq, terminal state resolves like a fresh run.
+async function recoverJobs() {
+  if (typeof anna.tools?.listJobs !== "function") return;
+  let out;
+  try {
+    out = await anna.tools.listJobs({ clientTag: CLIENT_TAG, state: ["queued", "running"] });
+  } catch (err) {
+    if (err?.code === "not_implemented") return;
+    throw err;
+  }
+  for (const job of out.jobs || []) {
+    setStatus("发现进行中的推进,正在重新接上…", "info");
+    enableTick(false);
+    pollJob(job.jobId, 0).finally(() => enableTick(true));
+  }
+}
+
+async function pollJob(jobId, sinceSeq) {
+  let seq = sinceSeq;
+  for (;;) {
+    const snap = await anna.tools.getJob({ jobId, sinceSeq: seq });
+    for (const ev of snap.progress || []) {
+      const d = ev?.data || {};
+      if (d.tick != null) setStatus(`推进中 t${d.tick}…`, "info");
+    }
+    if (snap.progress?.length) seq = snap.lastSeq;
+    if (["succeeded", "failed", "cancelled", "expired"].includes(snap.state)) {
+      await refresh();
+      setStatus(
+        snap.state === "succeeded" ? "推进完成。" : `job ${snap.state}`,
+        snap.state === "succeeded" ? "ok" : "err",
+      );
+      return;
+    }
+    await sleep(2000);
   }
 }
 

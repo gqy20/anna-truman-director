@@ -33,3 +33,4 @@ bundle/anna-tool-ids.js
 .idea/
 .vscode/
 *.swp
+.playwright-mcp/

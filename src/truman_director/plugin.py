@@ -32,6 +32,7 @@ from executa_sdk import (
     SamplingError,
     StorageClient,
     StorageError,
+    bind_invoke,
     make_response_router,
 )
 
@@ -65,6 +66,10 @@ MANIFEST: dict[str, Any] = {
                 "init | reset | tick | inject_event | list_scenarios | "
                 "get_agent | get_timeline | get_story."
             ),
+            # Long tool: a multi-tick async job may run for minutes. The host
+            # clamps sync invokes to ≤90s regardless; this default governs the
+            # async-job deadline when the caller doesn't pass timeoutMs.
+            "timeout": 86_400,
             "parameters": [
                 {"name": "action", "type": "string", "required": True},
                 {"name": "scenario", "type": "string", "required": False},
@@ -261,6 +266,15 @@ def _err(req_id: Any, code: int, message: str, data: dict | None = None) -> None
 
 
 async def _handle_invoke(req_id: Any, params: dict) -> None:
+    # bind_invoke stamps context.invoke_id on emit_progress notifications and
+    # every reverse-RPC our engine makes. It MUST live inside this coroutine:
+    # contextvars don't flow across threads, and this handler is scheduled
+    # onto the asyncio loop from the stdin thread (SDK context.py note).
+    with bind_invoke(params):
+        await _handle_invoke_bound(req_id, params)
+
+
+async def _handle_invoke_bound(req_id: Any, params: dict) -> None:
     tool = params.get("tool")
     args = params.get("arguments") or {}
     if tool != "world":
