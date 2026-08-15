@@ -157,10 +157,49 @@ async function refresh() {
   const world = payload?.value ?? null;
   if (!world) return false;
   $("clock").textContent = world.world_time;
-  $("tick-meta").textContent = `tick ${world.current_tick}`;
+  $("tick-meta").textContent = `tick ${world.current_tick} · day ${world.day || 1}`;
   renderMap(world);
   renderTimeline(world);
+  renderStories(world);
   return true;
+}
+
+// ─── day stories (M1.5) ──────────────────────────────────────────────
+// Stories live in the snapshot the plugin writes — render straight from it.
+// The latest day is the emotional headline (story + cliffhanger); older days
+// collapse so the panel stays about TODAY.
+
+function renderStories(world) {
+  const el = $("stories");
+  const stories = world.stories || [];
+  if (!stories.length) {
+    el.innerHTML = `<p class="stories-empty">第一天的故事,会在小镇跨过午夜时写好。</p>`;
+    return;
+  }
+  const latest = stories[stories.length - 1];
+  const older = stories.slice(0, -1);
+  el.innerHTML =
+    `<article class="story story-latest">` +
+    `<div class="story-day">Day ${latest.day}</div>` +
+    `<p class="story-text">${escapeHtml(latest.story)}</p>` +
+    (latest.cliffhanger ? `<p class="story-cliff">${escapeHtml(latest.cliffhanger)}</p>` : "") +
+    `</article>` +
+    (older.length
+      ? `<details class="story story-old"><summary>前 ${older.length} 天</summary>` +
+        older
+          .slice()
+          .reverse()
+          .map(
+            (s) =>
+              `<article class="story" style="margin-top:8px">` +
+              `<div class="story-day">Day ${s.day}</div>` +
+              `<p class="story-text">${escapeHtml(s.story)}</p>` +
+              (s.cliffhanger ? `<p class="story-cliff">${escapeHtml(s.cliffhanger)}</p>` : "") +
+              `</article>`,
+          )
+          .join("") +
+        `</details>`
+      : "");
 }
 
 // ─── scene derivation (snapshot → recent moves / talks / world_change) ─

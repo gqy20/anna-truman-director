@@ -174,8 +174,7 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 .about-desc { font-size: 12px; line-height: 1.55; color: var(--ink); margin: 8px 0 0; }
 .about-desc b { color: var(--accent-2); }
 
-.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.timeline li {
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }.timeline li {
   display: grid;
   grid-template-columns: 34px 56px 1fr;
   gap: 8px;
@@ -192,6 +191,21 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 .ev-talk  { color: var(--accent-2); }
 .ev-work  { color: var(--cafe); }
 .ev-rest  { color: var(--muted); }
+
+/* ─── day stories ───────────────────────────────────────── */
+
+.stories { display: flex; flex-direction: column; gap: 10px; }
+.stories-empty { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.story { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.story-latest { border-color: var(--accent); }
+.story-day { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.story-text { margin: 0; font-size: 12.5px; line-height: 1.65; color: var(--ink); }
+.story-cliff { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--accent); }
+.story-cliff::before { content: "⏳ "; }
+.story-old summary { cursor: pointer; list-style: none; font-size: 11px; color: var(--muted); }
+.story-old summary::-webkit-details-marker { display: none; }
+.story-old summary::before { content: "▸ "; }
+.story-old[open] summary::before { content: "▾ "; }
 
 .status { margin: 0; padding: 8px 16px; font-size: 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); }
 .status.ok   { color: var(--accent-2); }

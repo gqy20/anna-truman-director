@@ -6,15 +6,26 @@ import json
 
 
 class FakeSampling:
-    """Stand-in for SamplingClient. Returns canned ``content.text`` JSON."""
+    """Stand-in for SamplingClient. Dispatches on the response_format schema
+    name: ``truman_tick_decision`` → canned decide events; ``truman_day_story``
+    → canned day story. Any other name raises (unknown cognition call)."""
 
-    def __init__(self, events: list[dict] | None = None):
+    def __init__(self, events: list[dict] | None = None, story: dict | None = None):
         self.events = events or []
+        self.story = story or {
+            "story": "小镇度过了平静的一天。",
+            "cliffhanger": "夜色里,谁家的灯还亮着。",
+        }
         self.calls: list[dict] = []
 
     async def create_message(self, *, messages, max_tokens, **kwargs):
         self.calls.append({"messages": messages, "max_tokens": max_tokens, **kwargs})
-        return {"content": {"type": "text", "text": json.dumps({"events": self.events})}}
+        name = (kwargs.get("response_format") or {}).get("json_schema", {}).get("name")
+        if name == "truman_day_story":
+            text = json.dumps(self.story, ensure_ascii=False)
+        else:
+            text = json.dumps({"events": self.events})
+        return {"content": {"type": "text", "text": text}}
 
 
 class FakeStorage:

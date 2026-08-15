@@ -18,7 +18,7 @@ import yaml
 from executa_sdk import SamplingClient
 
 from .errors import TickBudgetExceededError
-from .state import WorldState
+from .state import MAX_STORIES, DayStory, WorldState, event_to_dict
 from .storage import save
 
 _log = logging.getLogger("truman.engine")
@@ -59,6 +59,23 @@ DECISION_SCHEMA: dict = {
 # loaded once at import (co-located with engine.decide, the only LLM call site).
 _PROMPTS_FILE = Path(__file__).parent / "prompts.yaml"
 
+# Day-story schema (M1.5). narrate is a COGNITION call (DESIGN D1): it retells
+# the day, it never decides resident actions — that remains decide's monopoly.
+# Two properties, so the single-property unwrap quirk that hits DECISION_SCHEMA
+# can't apply here; a non-dict parse is a loud failure (red line 4).
+NARRATIVE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "story": {"type": "string"},
+        "cliffhanger": {"type": "string"},
+    },
+    "required": ["story", "cliffhanger"],
+    "additionalProperties": False,
+}
+
+# Events the narrator sees per day — bounds the prompt when a long day ran.
+NARRATE_EVENT_WINDOW = 60
+
 
 def _load_prompts() -> dict:
     """Load prompt texts from ``prompts.yaml``. A missing or malformed file aborts
@@ -70,8 +87,10 @@ def _load_prompts() -> dict:
 
 _PROMPTS = _load_prompts()
 SYSTEM_PROMPT: str = _PROMPTS["sampling"]["system_prompt"]
+NARRATOR_PROMPT: str = _PROMPTS["sampling"]["narrator_prompt"]
 
 MAX_TOKENS = 1024
+NARRATE_MAX_TOKENS = 512  # a day story is 150-300 Chinese chars — 512 is ample
 # Wall-clock cap per sampling call. Matches the sampling-summarizer reference and
 # bounds how long a single tick can hang if the host stalls (SDK default is 90s).
 SAMPLING_TIMEOUT = 60.0
@@ -138,6 +157,76 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     return []
 
 
+# ── narrator: the day-close cognition call ─────────────────────────────
+
+
+async def narrate(
+    sampling: SamplingClient, world: WorldState, day: int, tick_from: int, tick_to: int
+) -> dict:
+    """Retell one finished day as prose + cliffhanger (cognition, not decision).
+
+    The closed day's event span is passed explicitly by the caller — by the
+    time day-close runs, the rollover has already moved ``day_start_tick`` to
+    the new day, so the span can't be recovered from live state alone.
+    """
+    day_events = [event_to_dict(e) for e in world.events if tick_from <= e.tick <= tick_to][
+        -NARRATE_EVENT_WINDOW:
+    ]
+    cast = [
+        {"id": a.id, "name": a.name, "occupation": a.occupation, "goal": a.goal}
+        for a in world.agents.values()
+    ]
+    payload = json.dumps({"day": day, "cast": cast, "events": day_events}, ensure_ascii=False)
+    result = await sampling.create_message(
+        system_prompt=NARRATOR_PROMPT,
+        messages=[{"role": "user", "content": {"type": "text", "text": payload}}],
+        max_tokens=NARRATE_MAX_TOKENS,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "truman_day_story",
+                "strict": True,
+                "schema": NARRATIVE_SCHEMA,
+            },
+        },
+        timeout=SAMPLING_TIMEOUT,
+    )
+    content = result["content"]
+    text = content.get("text", "") if isinstance(content, dict) else content
+    data = json.loads(text)
+    if not isinstance(data, dict) or "story" not in data:
+        raise ValueError(
+            f"narrate returned {type(data).__name__}, expected {{story, cliffhanger}} — "
+            "host may not support two-property json_schema; refusing to guess (red line 4)"
+        )
+    _log.info(
+        "narrate day=%s events=%dB story=%dchars cliffhanger=%dchars",
+        day,
+        len(payload.encode("utf-8")),
+        len(data.get("story", "")),
+        len(data.get("cliffhanger", "")),
+    )
+    return {"story": data["story"], "cliffhanger": data.get("cliffhanger", "")}
+
+
+async def day_close(world: WorldState, sampling: SamplingClient, tick_from: int) -> dict:
+    """Seal the finished day: narrate it, append the bounded DayStory."""
+    closed_day = world.day - 1
+    out = await narrate(sampling, world, closed_day, tick_from, world.current_tick)
+    world.stories.append(
+        DayStory(
+            day=closed_day,
+            tick_from=tick_from,
+            tick_to=world.current_tick,
+            story=out["story"],
+            cliffhanger=out["cliffhanger"],
+        )
+    )
+    if len(world.stories) > MAX_STORIES:
+        del world.stories[:-MAX_STORIES]
+    return out
+
+
 # ── reactor: advance time, apply, persist ──────────────────────────────
 
 
@@ -162,7 +251,8 @@ async def tick(
         )
     results = []
     for _ in range(n):
-        world.advance_tick()
+        prev_day_start = world.day_start_tick
+        rolled = world.advance_tick()
 
         # Drain director injections FIRST and fold them into the world, so this
         # tick's snapshot already carries them as established facts. The model then
@@ -185,6 +275,24 @@ async def tick(
             world.record_event(evt)
 
         await save(storage, world.snapshot())
+
+        # Day-close routine (DESIGN §6.2 / M1.5): the tick that carries the town
+        # past midnight seals the finished day with a narrated story — the
+        # model's prose retelling plus the cliffhanger that brings the director
+        # back tomorrow. Budget: this invoke spent 1 decide, narrate makes it 2
+        # (≤ 8 per invoke). Runs after save so the story lands in the same
+        # persisted snapshot.
+        if rolled:
+            story = await day_close(world, sampling, prev_day_start)
+            await save(storage, world.snapshot())
+            results.append(
+                {
+                    "tick": world.current_tick,
+                    "world_time": world.world_time,
+                    "day": world.day,
+                    "day_story": story,
+                }
+            )
 
         results.append(
             {

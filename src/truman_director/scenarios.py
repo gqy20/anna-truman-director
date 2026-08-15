@@ -156,10 +156,10 @@ DRAMATIC_OPENINGS: list[dict] = [
     {
         "id": "letter",
         "title": "Truman 收到一封信",
-        "hint": "一封只有一行字的信被塞进门缝:\"别相信任何人。\"",
+        "hint": '一封只有一行字的信被塞进门缝:"别相信任何人。"',
         "event": {
             "action": "world_change",
-            "reason": "Truman 的门缝里被塞进一封没有署名的信,上面只有一行字:\"别相信任何人。\"",
+            "reason": 'Truman 的门缝里被塞进一封没有署名的信,上面只有一行字:"别相信任何人。"',
             "importance": 0.95,
         },
     },

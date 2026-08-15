@@ -15,6 +15,41 @@ from enum import StrEnum
 # long run bounded.
 MAX_EVENTS = 500
 
+# Day stories kept in the snapshot (DESIGN §5.3): the story feed shows a week
+# of the town's life without bloating the 64KB APS KV value.
+MAX_STORIES = 7
+
+
+@dataclass
+class DayStory:
+    """Prose retelling of one simulated day, produced by engine.narrate."""
+
+    day: int
+    tick_from: int
+    tick_to: int
+    story: str = ""
+    cliffhanger: str = ""  # the open thread tomorrow picks up — the return hook
+
+
+def story_to_dict(s: DayStory) -> dict:
+    return {
+        "day": s.day,
+        "tick_from": s.tick_from,
+        "tick_to": s.tick_to,
+        "story": s.story,
+        "cliffhanger": s.cliffhanger,
+    }
+
+
+def story_from_dict(sd: dict) -> DayStory:
+    return DayStory(
+        day=sd["day"],
+        tick_from=sd.get("tick_from", 0),
+        tick_to=sd.get("tick_to", 0),
+        story=sd.get("story", ""),
+        cliffhanger=sd.get("cliffhanger", ""),
+    )
+
 
 class LocationType(StrEnum):
     CAFE = "cafe"
@@ -167,16 +202,30 @@ class WorldState:
     current_tick: int = 0
     world_time: str = "08:00"  # HH:MM
     tick_minutes: int = 5  # 1 tick = 5 simulated minutes
+    # Day tracking (DESIGN §5.1 / M1.5): day 1 is the opening day; a midnight
+    # crossing rolls it over and marks a checkpoint for the day-close routine.
+    day: int = 1
+    day_start_tick: int = 0  # first tick of the current day (story span bookkeeping)
     locations: dict[str, Location] = field(default_factory=dict)
     agents: dict[str, Agent] = field(default_factory=dict)
     events: list[Event] = field(default_factory=list)
+    stories: list[DayStory] = field(default_factory=list)  # bounded at MAX_STORIES
     _pending_injections: list[dict] = field(default_factory=list)
 
-    def advance_tick(self) -> None:
+    def advance_tick(self) -> bool:
+        """Advance one tick. Returns True when the clock crossed midnight —
+        the caller (engine.tick) then runs the day-close routine after the
+        tick's decide/apply/save completes, so the story covers the day that
+        just ENDED, including its final tick."""
         h, m = map(int, self.world_time.split(":"))
         dt = datetime(2000, 1, 1, h, m) + timedelta(minutes=self.tick_minutes)
+        rolled = dt.day != 1  # anchor day is the 1st; any rollover shows as day 2
         self.world_time = dt.strftime("%H:%M")
         self.current_tick += 1
+        if rolled:
+            self.day += 1
+            self.day_start_tick = self.current_tick
+        return rolled
 
     def snapshot(self) -> dict:
         """JSON-serializable dict — fed to sampling prompt + stored in APS KV."""
@@ -186,6 +235,8 @@ class WorldState:
             "current_tick": self.current_tick,
             "world_time": self.world_time,
             "tick_minutes": self.tick_minutes,
+            "day": self.day,
+            "day_start_tick": self.day_start_tick,
             "locations": {
                 lid: {
                     "id": loc.id,
@@ -225,6 +276,7 @@ class WorldState:
                 event_to_dict(e)
                 for e in self.events[-20:]  # last 20 events for context window
             ],
+            "stories": [story_to_dict(s) for s in self.stories[-MAX_STORIES:]],
         }
 
     @classmethod
@@ -238,6 +290,7 @@ class WorldState:
         locations = {lid: location_from_dict(ld) for lid, ld in data.get("locations", {}).items()}
         agents = {aid: agent_from_dict(ad) for aid, ad in data.get("agents", {}).items()}
         events = [event_from_dict(ed) for ed in data.get("events", [])]
+        stories = [story_from_dict(sd) for sd in data.get("stories", [])]
 
         return cls(
             run_id=data["run_id"],
@@ -245,9 +298,14 @@ class WorldState:
             current_tick=data.get("current_tick", 0),
             world_time=data.get("world_time", "08:00"),
             tick_minutes=data.get("tick_minutes", 5),
+            # 0.3.x snapshots predate day tracking — default day 1, tick 0. The
+            # first midnight crossing after upgrade lands them on the new path.
+            day=data.get("day", 1),
+            day_start_tick=data.get("day_start_tick", 0),
             locations=locations,
             agents=agents,
             events=events,
+            stories=stories,
         )
 
     def apply_event(self, evt: dict) -> None:

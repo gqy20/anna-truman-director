@@ -44,7 +44,7 @@ from .errors import (
     WorldNotInitializedError,
 )
 from .scenarios import build, build_from_spec, openings, scenario_infos
-from .state import WorldState, event_to_dict
+from .state import WorldState, event_to_dict, story_to_dict
 from .storage import load, save
 
 _log = logging.getLogger("truman.plugin")
@@ -63,7 +63,7 @@ MANIFEST: dict[str, Any] = {
             "description": (
                 "Manage the Truman Town simulation. Use 'action' to select: "
                 "init | reset | tick | inject_event | list_scenarios | "
-                "get_agent | get_timeline."
+                "get_agent | get_timeline | get_story."
             ),
             "parameters": [
                 {"name": "action", "type": "string", "required": True},
@@ -74,6 +74,7 @@ MANIFEST: dict[str, Any] = {
                 {"name": "agent_id", "type": "string", "required": False},
                 {"name": "limit", "type": "integer", "required": False},
                 {"name": "event_type", "type": "string", "required": False},
+                {"name": "day", "type": "integer", "required": False},
             ],
         }
     ],
@@ -206,7 +207,13 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         # one-tap starts right after init (M1.2) without a second action.
         return {"scenarios": scenario_infos(), "openings": openings()}
 
-    if action not in ("tick", "inject_event", "get_agent", "get_timeline"):
+    if action not in (
+        "tick",
+        "inject_event",
+        "get_agent",
+        "get_timeline",
+        "get_story",
+    ):
         raise ValueError(f"unknown action: {action!r}")
 
     world = await _require_world()
@@ -220,6 +227,13 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
 
     if action == "get_agent":
         return _agent_detail(world, kwargs["agent_id"])
+
+    if action == "get_story":
+        day = kwargs.get("day")
+        stories = world.stories
+        if day is not None:
+            stories = [s for s in stories if s.day == day]
+        return {"stories": [story_to_dict(s) for s in stories]}
 
     return _timeline(world, kwargs)
 

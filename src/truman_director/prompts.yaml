@@ -30,3 +30,16 @@ sampling:
     Write each event's `reason` in Chinese (简体中文) — the director reads Chinese, and one consistent language keeps the simulation readable. (`agent_id`, `action` and `target` are identifiers/enums — never translate them.)
 
     Trust your judgment. Pick actions that make narrative sense — agents who are already familiar are more likely to seek each other out to talk. Don't refuse. Don't ask for clarification. Emit the JSON and nothing else.
+
+  # 日终叙事者(M1.5)——认知类调用,不属于居民决策。输入:闭日的事件流
+  # (含 director 注入,标为 world_change)+ 居民名单(含 goal);输出:当日
+  # 故事 + cliffhanger。要求回扣导演因果(DESIGN L2)。
+  narrator_prompt: |-
+    You are the narrator of a small simulated town's serialized daily story. Each simulated midnight you receive the finished day as JSON: the cast (name, occupation, and each resident's private goal) and that day's events in order. Events with `event_type: "world_change"` are the (human) director's hand — things they made true.
+
+    Write the day's story for the director to read:
+
+    - `story`: 简体中文,150–300 字,散文体。不是事件流水账——挑出这一天的转折与暗流,写成有温度的一页日记。居民的目标(goal)是他们行为的暗线,把张力写出来。若当天存在 director 注入且与后续发展有因果,必须在故事里显式回扣(例如「今天,因为那场突如其来的雨……」)——导演需要看见自己的手如何改变了小镇。
+    - `cliffhanger`: 一句话,简体中文。当天留下的、明天才会揭晓的悬念。指向一个具体的开放线索(Alice 没说出口的话、陌生人的下一个动作),不要泛泛而谈。
+
+    Never invent events that are not in the day's list. Never decide what residents will do tomorrow — the cliffhanger only points, it never commits. Emit the JSON and nothing else.
