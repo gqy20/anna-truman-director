@@ -326,6 +326,7 @@ tick 检测 day 滚动 → reflect(当日事件, 各居民记忆) → 落账 ins
 | V13 | **本地 harness 实测(2026-08-15)** | ⚠️ `anna-app dev` 0.1.30 本地 runtime **没有 job 通道**:`tools.listJobs` 报 `unknown_method`(≠ 文档的 `not_implemented`)→ async 路径在本地 harness 无法验证,只能在平台真机验证;bundle 降级已同时兼容两种错误码 | 本机 dev harness RPC log 实录 |
 | V14 | **本地 harness 实测(2026-08-15)** | ✅ bundle 真机加载/连接/ACL 全通(含 `chat.append_artifact` 授权生效);🐛 抓到并修复两个真 bug:`[hidden]` 被 `.openings{display:flex}` 覆盖导致遮罩常驻挡死 UI(CSS 已加 `[hidden]{display:none!important}`)、`unknown_method` 不触发 sync 回退(已修) | 本机 dev harness 会话 |
 | V15 | **协议级 E2E(2026-08-16)** | ✅ `scripts/local_e2e.py`:真插件 stdio 全链路(initialize v2/describe/init/tick×2 跨午夜→narrate→故事落快照/get_agent/get_story)mock-LLM 模式全过;真 LLM 路径已打通到 complete 端点(PAT→mint 成功),**当前被账号态阻断:APP_QUOTA_EXCEEDED "Subscription expired"**——续费/领积分后去掉 MOCK=1 即可跑真模型。另:平台 API 在 Cloudflare 后,Python/curl 指纹被 1010 拒,须 Node fetch(脚本已内置)。 | 本机执行记录 |
+| V16 | **真浏览器 UI E2E(2026-08-16,opencli 驱动用户 Chrome)** | ✅ init→三选一戏剧开场卡渲染→点击开场(注入排队+自动 3 tick)在真实 Chrome 全通;tick 在 decide 处被真采样配额拦下,**红线 4 表现完美:错误原样冒泡到 UI 状态栏(429 APP_QUOTA_EXCEEDED)、无静默降级、无半应用世界**。同源 iframe 驱动方式:opencli eval 程序化 click(state 渲染穿 iframe 但 click/find 不穿)。 | opencli 会话实录 |
 
 > 官方文档入口(AI 可读,可粘贴给任意编码助手):https://staging.anna.partners/llms.txt
 
