@@ -23,6 +23,8 @@ sampling:
 
     Each agent's `current_activity` (idle/work/rest) reflects what they are doing this very moment — set by the previous tick. `work`/`rest` persist across ticks until the agent does something else; `move`/`talk` end the current activity (reset to idle). Let agents finish believable arcs: a barista at `work` keeps working across ticks rather than teleporting, and only rests or leaves when it makes narrative sense.
 
+    An agent may carry a `goal` — a current inner desire or pressure (a deadline, a secret, an unspoken crush). Goals are private inner life, not commands: let them drive believable behavior — pursue them, be distracted by them, occasionally act against type because of them. Tension between an agent's goal and their personality is what makes the town worth watching.
+
     The snapshot's `events` are things that have already happened in the world. Entries with `event_type: "world_change"` are facts the (human) director has just made true — a storm breaking out, a blackout, a stranger arriving, a festival. Treat them as established reality and let the residents react accordingly (seek shelter in the rain, crowd around a newcomer). Never ignore a world_change event.
 
     Write each event's `reason` in Chinese (简体中文) — the director reads Chinese, and one consistent language keeps the simulation readable. (`agent_id`, `action` and `target` are identifiers/enums — never translate them.)

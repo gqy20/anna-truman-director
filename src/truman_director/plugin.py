@@ -43,7 +43,7 @@ from .errors import (
     TrumanError,
     WorldNotInitializedError,
 )
-from .scenarios import build, build_from_spec, scenario_infos
+from .scenarios import build, build_from_spec, openings, scenario_infos
 from .state import WorldState, event_to_dict
 from .storage import load, save
 
@@ -202,7 +202,9 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         return {"scenario": world.scenario, "tick": 0, "world_time": world.world_time}
 
     if action == "list_scenarios":
-        return {"scenarios": scenario_infos()}
+        # Openings ride along so the bundle can offer the three dramatic
+        # one-tap starts right after init (M1.2) without a second action.
+        return {"scenarios": scenario_infos(), "openings": openings()}
 
     if action not in ("tick", "inject_event", "get_agent", "get_timeline"):
         raise ValueError(f"unknown action: {action!r}")

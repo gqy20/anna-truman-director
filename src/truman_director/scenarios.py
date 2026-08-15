@@ -90,6 +90,10 @@ def _cafe_town(start: datetime) -> WorldState:
                     "extraversion": 0.7,
                     "agreeableness": 0.8,
                 },
+                # Dramatic seed (DESIGN §3 L2 / M1.2): tension is baked into the
+                # initial conditions — no behavior rules, the model reads the
+                # goal and plays it out.
+                goal="偷偷期待 Bob 今天会不会来店里,想多和他说几句话,又怕被看穿心事。",
             ),
             "bob": Agent(
                 id="bob",
@@ -103,6 +107,7 @@ def _cafe_town(start: datetime) -> WorldState:
                     "extraversion": 0.3,
                     "agreeableness": 0.6,
                 },
+                goal="本周必须交出小说终稿,可灵感迟迟不来,越焦虑越写不出来。",
             ),
             "truman": Agent(
                 id="truman",
@@ -116,9 +121,54 @@ def _cafe_town(start: datetime) -> WorldState:
                     "extraversion": 0.5,
                     "agreeableness": 0.7,
                 },
+                goal="守住一个不能说出口的秘密:他厌倦了这份工作,真正想做的是离开小镇去看海。",
             ),
         },
     )
+
+
+# Dramatic openings (DESIGN §3 L3 / M1.2): three one-tap injections the bundle
+# offers right after init, so the first minute of a fresh town has stakes
+# instead of "watching people drink coffee". Each `event` is a director
+# injection spec — it goes through the same apply_inject_event queue as any
+# manual injection (director power unchanged, red line 3 intact).
+DRAMATIC_OPENINGS: list[dict] = [
+    {
+        "id": "stranger",
+        "title": "一个陌生人来到镇上",
+        "hint": "清晨,一个背着相机包的陌生人走进小镇,逢人便打听这座镇的来历。",
+        "event": {
+            "action": "world_change",
+            "reason": "一个背着相机包的陌生人来到小镇,逢人便打听这座镇的来历,居民们窃窃私语。",
+            "importance": 0.95,
+        },
+    },
+    {
+        "id": "lost_grinder",
+        "title": "咖啡馆丢了件重要的东西",
+        "hint": "店里祖传的旧磨豆机不翼而飞,所有人的早晨都被打乱了。",
+        "event": {
+            "action": "world_change",
+            "reason": "咖啡馆里祖传的旧磨豆机不翼而飞,晨间的秩序被打破,每个人都被卷入寻找与猜疑。",
+            "importance": 0.95,
+        },
+    },
+    {
+        "id": "letter",
+        "title": "Truman 收到一封信",
+        "hint": "一封只有一行字的信被塞进门缝:\"别相信任何人。\"",
+        "event": {
+            "action": "world_change",
+            "reason": "Truman 的门缝里被塞进一封没有署名的信,上面只有一行字:\"别相信任何人。\"",
+            "importance": 0.95,
+        },
+    },
+]
+
+
+def openings() -> list[dict]:
+    """Copy of the opening cards for list_scenarios (bundle renders them)."""
+    return [dict(o) for o in DRAMATIC_OPENINGS]
 
 
 SCENARIOS: dict[str, callable] = {

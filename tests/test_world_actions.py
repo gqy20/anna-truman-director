@@ -98,3 +98,37 @@ async def test_get_timeline_filters_and_limits(live_world):
 async def test_unknown_action_is_loud(live_world):
     with pytest.raises(ValueError, match="unknown action"):
         await plugin._tool_world(action="teleport")
+
+
+# ── M1.2: dramatic seeds + openings ────────────────────────────────────
+
+
+async def test_cafe_town_seeds_goals_with_tension(live_world):
+    """The preset town starts with dramatic pressure baked in (DESIGN M1.2):
+    every resident carries a goal, and the three goals are distinct inner
+    conflicts — no behavior rules, the model just reads them."""
+    goals = {aid: a.goal for aid, a in plugin._world.agents.items()}
+    assert len(goals) == 3
+    assert all(g for g in goals.values()), "every resident must open with a goal"
+    assert len(set(goals.values())) == 3
+
+
+async def test_list_scenarios_carries_dramatic_openings(live_world):
+    out = await plugin._tool_world(action="list_scenarios")
+    assert len(out["openings"]) == 3
+    for o in out["openings"]:
+        assert o["id"] and o["title"] and o["hint"]
+        # each opening is a ready-to-fire injection spec
+        assert o["event"]["action"] == "world_change"
+        assert o["event"]["reason"]
+        assert o["event"]["importance"] >= 0.9
+
+
+async def test_opening_event_queues_like_any_injection(live_world):
+    from truman_director.engine import apply_inject_event
+    from truman_director.scenarios import openings
+
+    spec = openings()[0]["event"]
+    ack = apply_inject_event(plugin._world, spec)
+    assert ack["effective_tick"] == plugin._world.current_tick + 1
+    assert plugin._world._pending_injections[0]["action"] == "world_change"
