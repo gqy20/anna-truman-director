@@ -166,6 +166,14 @@ async function pickOpening(openingId) {
 
 const CLIENT_TAG = "truman-director";
 
+// "this host has no job channel" arrives as different error codes depending on
+// the runtime: the platform returns not_implemented, the local dev harness
+// returns unknown_method (tools.listJobs is not defined — observed live in
+// anna-app dev 0.1.30). Treat both as "fall back to the sync loop".
+function isJobChannelMissing(err) {
+  return err?.code === "not_implemented" || err?.code === "unknown_method";
+}
+
 async function onTick(n) {
   if (!anna) return;
   setStatus(`Advancing ${n} tick(s)…`, "info");
@@ -177,8 +185,8 @@ async function onTick(n) {
       await tickSync(n);
     }
   } catch (err) {
-    if (err?.code === "not_implemented" && n > 1) {
-      await tickSync(n); // older host without the job channel
+    if (n > 1 && isJobChannelMissing(err)) {
+      await tickSync(n); // host without the job channel (see isJobChannelMissing)
     } else {
       setStatus(`tick failed: ${err.message || err}`, "err");
     }
@@ -237,7 +245,7 @@ async function recoverJobs() {
   try {
     out = await anna.tools.listJobs({ clientTag: CLIENT_TAG, state: ["queued", "running"] });
   } catch (err) {
-    if (err?.code === "not_implemented") return;
+    if (isJobChannelMissing(err)) return; // no job channel on this host — fine
     throw err;
   }
   for (const job of out.jobs || []) {

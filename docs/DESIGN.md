@@ -323,6 +323,8 @@ tick 检测 day 滚动 → reflect(当日事件, 各居民记忆) → 落账 ins
 | V10 | 大 payload 传输 | ✅ stdio 帧 >512KB 自动切文件传输;invoke 返回建议发增量而非全量(bundle 渲染本就走 storage 读) | forum #84 hunter |
 | V11 | 官方测试设施 | ✅ `anna-executa-test`(生产同源 invoker + Hypothesis 契约 fuzz + wire_format 校验);`anna-app dev` 自动录制会话到 `fixtures/` + `fixture verify/summarize/replay` CLI;`mountBundle` vitest | staging.anna.partners/developers/apps/{testing-plugin,recording-replay,testing-bundle} |
 | V12 | 官方排障清单 | ✅ 7 条 pitfalls:进程长驻/三名一致/**stderr-only**/parameters 形状/返回形状/包内 manifest/**PyInstaller 冷启动 vs 5s describe**——冷启动与我们 binary 分发直接相关 | staging.anna.partners/developers/tools/executa-pitfalls |
+| V13 | **本地 harness 实测(2026-08-15)** | ⚠️ `anna-app dev` 0.1.30 本地 runtime **没有 job 通道**:`tools.listJobs` 报 `unknown_method`(≠ 文档的 `not_implemented`)→ async 路径在本地 harness 无法验证,只能在平台真机验证;bundle 降级已同时兼容两种错误码 | 本机 dev harness RPC log 实录 |
+| V14 | **本地 harness 实测(2026-08-15)** | ✅ bundle 真机加载/连接/ACL 全通(含 `chat.append_artifact` 授权生效);🐛 抓到并修复两个真 bug:`[hidden]` 被 `.openings{display:flex}` 覆盖导致遮罩常驻挡死 UI(CSS 已加 `[hidden]{display:none!important}`)、`unknown_method` 不触发 sync 回退(已修) | 本机 dev harness 会话 |
 
 > 官方文档入口(AI 可读,可粘贴给任意编码助手):https://staging.anna.partners/llms.txt
 
