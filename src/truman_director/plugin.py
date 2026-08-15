@@ -37,9 +37,14 @@ from executa_sdk import (
 
 from . import __version__
 from .engine import apply_inject_event, tick
-from .errors import InvalidWorldSpecError, TrumanError, WorldNotInitializedError
-from .scenarios import build, build_from_spec
-from .state import WorldState
+from .errors import (
+    AgentNotFoundError,
+    InvalidWorldSpecError,
+    TrumanError,
+    WorldNotInitializedError,
+)
+from .scenarios import build, build_from_spec, scenario_infos
+from .state import WorldState, event_to_dict
 from .storage import load, save
 
 _log = logging.getLogger("truman.plugin")
@@ -57,7 +62,8 @@ MANIFEST: dict[str, Any] = {
             "name": "world",
             "description": (
                 "Manage the Truman Town simulation. Use 'action' to select: "
-                "init | tick | inject_event."
+                "init | reset | tick | inject_event | list_scenarios | "
+                "get_agent | get_timeline."
             ),
             "parameters": [
                 {"name": "action", "type": "string", "required": True},
@@ -65,6 +71,9 @@ MANIFEST: dict[str, Any] = {
                 {"name": "spec", "type": "object", "required": False},
                 {"name": "n", "type": "integer", "required": False},
                 {"name": "event", "type": "object", "required": False},
+                {"name": "agent_id", "type": "string", "required": False},
+                {"name": "limit", "type": "integer", "required": False},
+                {"name": "event_type", "type": "string", "required": False},
             ],
         }
     ],
@@ -90,19 +99,100 @@ _stop: asyncio.Event | None = None
 # ─── world tool (single dispatcher) ────────────────────────────────────
 
 
+async def _require_world() -> WorldState:
+    """Live-world actions (tick / inject / queries) land here. The plugin is a
+    long-lived stdio child of the Matrix Agent — an Agent restart / redeploy /
+    crash reboots this process and loses the module-level _world. The snapshot
+    in APS KV is the single source of truth (CLAUDE.md red line 2), so on first
+    access we restore _world from it instead of forcing the user to re-init. A
+    missing snapshot is the only genuinely-uninitialized case → loud error. A
+    storage call failure propagates as StorageError (red line 4 — never silent).
+    """
+    global _world
+    if _world is None:
+        snapshot = await load(_storage)
+        if snapshot is None:
+            raise WorldNotInitializedError("call action='init' first")
+        _world = WorldState.from_snapshot(snapshot)
+        _log.info("world restored from APS KV (run=%s tick=%s)", _world.run_id, _world.current_tick)
+    return _world
+
+
+def _build_world(kwargs: dict[str, Any]) -> WorldState:
+    """init / reset share the construction path — both mint a fresh run_id."""
+    spec = kwargs.get("spec")
+    scenario = kwargs.get("scenario")
+    if spec:
+        return build_from_spec(spec, datetime.now(UTC))
+    if scenario:
+        return build(scenario, datetime.now(UTC))
+    raise InvalidWorldSpecError("init/reset requires 'scenario' (preset) or 'spec' (custom)")
+
+
+def _agent_detail(world: WorldState, agent_id: str) -> dict:
+    """Full resident dossier for get_agent: identity, whereabouts, relationships
+    with names resolved, and the events they were part of (L1 UI / Anna chat)."""
+    agent = world.agents.get(agent_id)
+    if agent is None:
+        raise AgentNotFoundError(
+            f"unknown agent_id: {agent_id!r}; residents: {sorted(world.agents)}"
+        )
+    loc = world.locations.get(agent.current_location_id)
+    home = world.locations.get(agent.home_location_id)
+    relationships = [
+        {
+            "agent_id": rid,
+            "name": world.agents[rid].name if rid in world.agents else rid,
+            "familiarity": rel.familiarity,
+            "trust": rel.trust,
+            "affinity": rel.affinity,
+            "last_interaction_tick": rel.last_interaction_tick,
+        }
+        for rid, rel in sorted(agent.relationships.items())
+    ]
+    involved = [
+        event_to_dict(e)
+        for e in world.events
+        if e.actor_agent_id == agent_id or e.target_agent_id == agent_id
+    ]
+    return {
+        "agent": {
+            "id": agent.id,
+            "name": agent.name,
+            "occupation": agent.occupation,
+            "goal": agent.goal,
+            "personality": agent.personality,
+            "current_activity": agent.current_activity,
+        },
+        "location": {"id": loc.id, "name": loc.name} if loc else None,
+        "home": {"id": home.id, "name": home.name} if home else None,
+        "relationships": relationships,
+        "recent_events": involved[-10:],
+    }
+
+
+def _timeline(world: WorldState, kwargs: dict[str, Any]) -> dict:
+    """get_timeline: filtered tail of the in-memory event list (bounded 500)."""
+    limit = max(1, min(100, int(kwargs.get("limit", 30))))
+    agent_id = kwargs.get("agent_id")
+    event_type = kwargs.get("event_type")
+    events = world.events
+    if agent_id:
+        events = [
+            e for e in events if e.actor_agent_id == agent_id or e.target_agent_id == agent_id
+        ]
+    if event_type:
+        events = [e for e in events if e.event_type == event_type]
+    return {"events": [event_to_dict(e) for e in events[-limit:]]}
+
+
 async def _tool_world(action: str, **kwargs: Any) -> dict:
     global _world
 
-    if action == "init":
-        spec = kwargs.get("spec")
-        scenario = kwargs.get("scenario")
-        if spec:
-            world = build_from_spec(spec, datetime.now(UTC))
-        elif scenario:
-            world = build(scenario, datetime.now(UTC))
-        else:
-            raise InvalidWorldSpecError("init requires 'scenario' (preset) or 'spec' (custom)")
-        # Seed occupants from each agent's starting location.
+    if action in ("init", "reset"):
+        # reset is init with intent: fresh run_id, the old snapshot is simply
+        # overwritten by the first save below.
+        world = _build_world(kwargs)
         for agent in world.agents.values():
             loc = world.locations.get(agent.current_location_id)
             if loc:
@@ -111,28 +201,25 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         _world = world
         return {"scenario": world.scenario, "tick": 0, "world_time": world.world_time}
 
-    if action != "tick" and action != "inject_event":
+    if action == "list_scenarios":
+        return {"scenarios": scenario_infos()}
+
+    if action not in ("tick", "inject_event", "get_agent", "get_timeline"):
         raise ValueError(f"unknown action: {action!r}")
 
-    # tick / inject_event need a live world. The plugin is a long-lived stdio
-    # child of the Matrix Agent — an Agent restart / redeploy / crash reboots
-    # this process and loses the module-level _world. The snapshot in APS KV is
-    # the single source of truth (CLAUDE.md red line 2), so on first access we
-    # restore _world from it instead of forcing the user to re-init. A missing
-    # snapshot is the only genuinely-uninitialized case → loud error. A storage
-    # call failure propagates as StorageError (red line 4 — never silent).
-    if _world is None:
-        snapshot = await load(_storage)
-        if snapshot is None:
-            raise WorldNotInitializedError("call action='init' first")
-        _world = WorldState.from_snapshot(snapshot)
-        _log.info("world restored from APS KV (run=%s tick=%s)", _world.run_id, _world.current_tick)
+    world = await _require_world()
 
     if action == "tick":
         n = kwargs.get("n", 1)
-        return {"results": await tick(_world, _sampling, _storage, n)}
+        return {"results": await tick(world, _sampling, _storage, n)}
 
-    return apply_inject_event(_world, kwargs["event"])
+    if action == "inject_event":
+        return apply_inject_event(world, kwargs["event"])
+
+    if action == "get_agent":
+        return _agent_detail(world, kwargs["agent_id"])
+
+    return _timeline(world, kwargs)
 
 
 # ─── JSON-RPC framing ─────────────────────────────────────────────────

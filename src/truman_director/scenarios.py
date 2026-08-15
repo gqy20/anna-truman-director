@@ -125,6 +125,21 @@ SCENARIOS: dict[str, callable] = {
     "cafe_town": _cafe_town,
 }
 
+# Storefront metadata for ``world action="list_scenarios"`` — what the director
+# (and the platform Anna, narrating in chat) sees when picking a world.
+SCENARIO_INFO: list[dict] = [
+    {
+        "id": "cafe_town",
+        "name": "Cafe Town",
+        "description": "Three residents, one cafe as the social hub of their lives.",
+    },
+]
+
+
+def scenario_infos() -> list[dict]:
+    """Scenario presets for list_scenarios (M1.2 will add dramatic openings)."""
+    return [dict(info) for info in SCENARIO_INFO]
+
 
 def build(slug: str, start: datetime) -> WorldState:
     if slug not in SCENARIOS:

@@ -53,6 +53,11 @@ class Agent:
     home_location_id: str
     current_location_id: str
     personality: dict = field(default_factory=dict)
+    # What the resident is currently after, in their own framing. Prefilled by
+    # scenario seeds (M1.2 dramatic tension) or a custom spec's agent entry;
+    # reflection (M2) will evolve it. Surfaced to decide() via world_view and
+    # to the director via get_agent.
+    goal: str = ""
     # What the agent is doing right now: idle / work / rest. Set by apply_event
     # on work|rest decisions; move|talk|world_change reset it to idle (a new
     # action ends the previous activity). Before this existed, work|rest events
@@ -103,6 +108,7 @@ def agent_from_dict(ad: dict) -> Agent:
         home_location_id=ad["home_location_id"],
         current_location_id=ad["current_location_id"],
         personality=ad.get("personality", {}),
+        goal=ad.get("goal", ""),
         current_activity=ad.get("current_activity", "idle"),
         relationships={
             rid: Relationship(
@@ -115,6 +121,24 @@ def agent_from_dict(ad: dict) -> Agent:
             for rid, rd in ad.get("relationships", {}).items()
         },
     )
+
+
+def event_to_dict(e: Event) -> dict:
+    """Serialize one Event for snapshot / timeline / agent-detail responses.
+
+    Single serializer so every surface (prompt view, storage, bundle timeline)
+    sees the exact same event shape.
+    """
+    return {
+        "id": e.id,
+        "tick": e.tick,
+        "event_type": e.event_type,
+        "actor_agent_id": e.actor_agent_id,
+        "target_agent_id": e.target_agent_id,
+        "location_id": e.location_id,
+        "description": e.description,
+        "importance": e.importance,
+    }
 
 
 def event_from_dict(ed: dict) -> Event:
@@ -183,6 +207,7 @@ class WorldState:
                     "home_location_id": a.home_location_id,
                     "current_location_id": a.current_location_id,
                     "personality": a.personality,
+                    "goal": a.goal,
                     "current_activity": a.current_activity,
                     "relationships": {
                         rid: {
@@ -197,16 +222,7 @@ class WorldState:
                 for aid, a in self.agents.items()
             },
             "events": [
-                {
-                    "id": e.id,
-                    "tick": e.tick,
-                    "event_type": e.event_type,
-                    "actor_agent_id": e.actor_agent_id,
-                    "target_agent_id": e.target_agent_id,
-                    "location_id": e.location_id,
-                    "description": e.description,
-                    "importance": e.importance,
-                }
+                event_to_dict(e)
                 for e in self.events[-20:]  # last 20 events for context window
             ],
         }

@@ -6,6 +6,7 @@ Business error codes under the ``TrumanError`` umbrella:
     -32002  InvalidWorldSpecError
     -32003  UnknownScenarioError
     -32004  TickBudgetExceededError
+    -32005  AgentNotFoundError
 """
 
 
@@ -43,3 +44,9 @@ class TickBudgetExceededError(TrumanError):
     """
 
     code = -32004
+
+
+class AgentNotFoundError(TrumanError):
+    """``get_agent`` asked for an agent_id that is not in the world."""
+
+    code = -32005
