@@ -1,14 +1,12 @@
 {
   "slug": "anna-truman-director",
   "name": "Truman Director",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "executa_type": "tool",
-  "description": "LLM-directed tick-based town simulator. The world tool exposes init | tick | inject_event; agent decisions are produced by the host LLM via sampling.",
-
+  "description": "LLM-directed tick-based town simulator. The world tool exposes init | reset | tick | inject_event | list_scenarios | get_agent | get_timeline | get_story; agent decisions are produced by the host LLM via sampling, and each finished day is narrated into a story with a cliffhanger.",
   "tool_id": "tool-qingyu_ge-anna-truman-director-sxah66uc",
   "type": "python",
   "enabled": true,
-
   "distribution": {
     "active": "binary",
     "profiles": {
@@ -22,22 +20,22 @@
         "supports_protocol": true,
         "binary_urls": {
           "darwin-arm64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.3/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.0/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "darwin-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.3/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.0/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "linux-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.3/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.0/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "windows-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.3.3/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.0/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc.exe",
             "format": "tar.gz"
           }
@@ -45,6 +43,5 @@
       }
     }
   },
-
   "_comment": "Publish/dev metadata (slug/name/version/executa_type) is read by `anna-app apps publish`; tool_id/type/enabled/distribution are read by `anna-app dev` and the Agent. The distribution block mirrors the official anna-app-focus-flow reference: `active: binary` so the Agent installs a self-contained PyInstaller binary per platform; `supports_protocol: true` lets the Agent negotiate the JSON-RPC protocol on the spawned child. Archives are built by .github/workflows/release-binary.yml (tag truman-director-v<version>); each archive ships bin/<tool_id>[.exe] + manifest.json (forum topic 140), so every entrypoint carries the bin/ prefix (and .exe on windows). Run `python scripts/set-tool-id.py apply --tool <minted>` to rewrite the minted tool_id across pyproject.toml, executa.json and bundle/app.js once you mint one at https://anna.partners/executa. This dir is the `truman-director` handle referenced by app.json#bundled_executas."
 }
