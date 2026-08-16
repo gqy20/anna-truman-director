@@ -250,6 +250,7 @@ tick 检测 day 滚动 → reflect(当日事件, 各居民记忆) → 落账 ins
 ```
 
 - **设计系统**:token 制(`--amber` 导演琥珀 / `--rose` / `--cyan` 交流青 / 暖白墨色),五级字号,系统字体三件套(衬线 Georgia/Noto Serif CJK、等宽 ui-monospace、无衬线系统栈)——零字体文件,CSP `'self'` 安全;胶片颗粒(SVG feTurbulence)+ 暗角营造监视器质感。
+- **流体缩放**:根字号 `clamp(12.5px, 10.5px+0.38vw, 16px)`,全部尺寸走 rem token 或 `clamp()`——窗口拖大(520→1440px)整体优雅放大而非中间留白;面板夹在 `clamp(15rem, 30vw, 20rem)` 不挤压舞台;极窄(≤560px)面板沉底。窗口声明:默认 960×880,min 520×600,max 1440×1080,resizable。
 - **文案纪律**(§3.6 延伸):两个字能说清的不用十个;状态即 toast(3.2s 自动消失,错误停留);地图文字降到悬浮提示;错误码翻译成人话(`friendlyError`,原文透传兜底)。
 - **戏剧开场**:init 成功后弹三选一章节卡(模板来自 §9 M1.2 场景数据),一键 = `inject_event` + bundle 顺序驱动 3 个单 tick invoke(每 invoke ≤90s 安全余量)。
 - **回归提示**(M2.4):加载时对比 `last_seen_at`——离开 30 分钟~4 小时弹"细补叙"邀请;超过 4 小时弹**蒙太奇**邀请(「你不在的这些天……」);当天已有故事则首屏直接展示 cliffhanger。

@@ -364,7 +364,7 @@ function renderStage(world) {
     html +=
       `<div class="bld ${dots ? "lit" : ""} ${arrivals.has(loc.id) ? "arrive" : ""}" ` +
       `style="left:${loc.x}%;top:${loc.y}%">` +
-      `<svg class="bld-sil" width="34" height="34" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">${
+      `<svg class="bld-sil" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">${
         SILS[loc.type] || SILS.street
       }</svg>` +
       `<div class="dots">${dots}</div>` +
