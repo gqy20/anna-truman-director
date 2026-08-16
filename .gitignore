@@ -34,3 +34,4 @@ bundle/anna-tool-ids.js
 .vscode/
 *.swp
 .playwright-mcp/
+.dev-harness.log

@@ -1,330 +1,550 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Truman Director — 「导演监视器」设计系统
+   原则:电影感深色底 + 场记板色系;5 级字号封顶;组件 8 原语;零字体文件。
+   ═══════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg: #0f1115;
-  --panel: #161a21;
-  --panel-2: #1d222b;
-  --ink: #e8eaed;
-  --muted: #8b93a1;
-  --accent: #7c9cff;
-  --accent-2: #4cd6a4;
-  --cafe: #c98a5a;
-  --park: #4caf72;
-  --library: #5a8fd6;
-  --home: #8b93a1;
-  --street: #5a5f6a;
-  --line: #2a2f3a;
+  /* —— 色板:夜幕 + 场记板 —— */
+  --bg0: #090d13; /* 最深底 */
+  --bg1: #0d131c; /* 面板 */
+  --bg2: #121a26; /* 抬升面 */
+  --line: #1e2937;
+  --line2: #2b3949;
+  --ink: #e9e3d6; /* 暖白 */
+  --ink-dim: #8e887a; /* 暖灰 */
+  --amber: #e8a54b; /* 导演 */
+  --amber-hi: #ffc873;
+  --rose: #e05d5d; /* 戏点 */
+  --cyan: #5fd0bf; /* 交谈/生命 */
+
+  /* —— 字体三角色(零字体文件) —— */
+  --serif: Georgia, "Noto Serif CJK SC", "Songti SC", SimSun, serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  --sans: system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* —— 字号 5 级 —— */
+  --t-display: 26px;
+  --t-title: 17px;
+  --t-body: 13px;
+  --t-meta: 12px;
+  --t-micro: 11px;
+
+  /* —— 间距 / 圆角 / 动效 / 层级 —— */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+  --r1: 6px; --r2: 10px; --r3: 14px;
+  --d1: 150ms; --d2: 300ms;
+  --z-tip: 30; --z-toast: 40; --z-modal: 50; --z-grain: 60;
 }
 
 * { box-sizing: border-box; }
-
-/* The hidden attribute must always win: overlays (.openings/.modal-backdrop)
-   set display:flex explicitly, which out-specifies the UA's [hidden] rule and
-   left the openings mask permanently covering the UI — caught in live dev
-   harness testing when "Start town" was unclickable. */
 [hidden] { display: none !important; }
 
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: var(--bg0);
   color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--sans);
+  font-size: var(--t-body);
+  line-height: 1.6;
+}
+body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* —— 胶片颗粒:全屏极低透明度噪点,叠在最上层但不可交互 —— */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-grain);
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
 }
 
-body { display: flex; flex-direction: column; height: 100vh; }
-
-/* ─── topbar ────────────────────────────────────────────── */
+/* ═══ 顶栏:场记时间码 ═════════════════════════════════════════════ */
 
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--panel);
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  background: var(--bg1);
   border-bottom: 1px solid var(--line);
 }
-.brand { font-size: 14px; font-weight: 700; padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--line); }
-.clock { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tick-meta { color: var(--muted); font-size: 13px; }
-.spacer { flex: 1; }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-meta);
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  padding-right: var(--s3);
+  border-right: 1px solid var(--line);
+  white-space: nowrap;
+}
+.brand::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber);
+  animation: rec-pulse 2.4s ease-in-out infinite;
+}
+@keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.timecode {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--t-display);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.timecode .tc-dim { color: var(--ink-dim); font-size: calc(var(--t-display) * 0.62); }
+.timecode .tc-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.18em;
+  vertical-align: -0.12em;
+  background: var(--amber);
+  animation: caret 1.1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+
+/* —— 按钮原语 —— */
 button {
-  border: 1px solid var(--line);
-  background: var(--panel-2);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
   color: var(--ink);
   padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--r1);
+  font-size: var(--t-meta);
+  font-family: var(--sans);
   cursor: pointer;
+  transition: border-color var(--d1), color var(--d1), background var(--d1);
 }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #0b0d12; font-weight: 600; }
-button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button.ghost:hover:not(:disabled) { border-color: var(--amber); color: var(--amber-hi); }
+button.primary { background: var(--amber); border-color: var(--amber); color: #14100a; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--amber-hi); }
+button.icon { font-size: var(--t-title); padding: 4px 12px; }
 
-/* ─── stage ─────────────────────────────────────────────── */
+/* ═══ 主区:舞台 + 侧栏 ═══════════════════════════════════════════ */
 
-.stage { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
+.stage-wrap {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  min-height: 0;
+}
 
-.map {
+/* —— 舞台:夜幕地平线 + 暗角 —— */
+.stage {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 30% 30%, rgba(124,156,255,0.06), transparent 40%),
-    radial-gradient(circle at 70% 70%, rgba(76,214,164,0.05), transparent 40%),
-    var(--bg);
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 10% 10%, 10% 10%;
+    linear-gradient(180deg, #070b12 0%, #0b1220 55%, #101a2b 82%, #16233a 100%);
 }
-
-.loc {
+.stage::after { /* 暗角 */
+  content: "";
   position: absolute;
-  transform: translate(-50%, -50%);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 10px;
-  min-width: 96px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 42%, transparent 55%, rgba(4, 6, 10, 0.55) 100%);
+  transition: background var(--d2);
 }
-.loc-name { font-size: 12px; font-weight: 600; }
-.loc-who { font-size: 11px; color: var(--muted); }
+body.freeze .stage::after {
+  background: radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(3, 4, 8, 0.8) 100%);
+}
+body.freeze .panel .story-latest { transform: scale(1.015); }
 
-/* scene bits layered onto each location card */
-.loc-move {
-  font-size: 10px;
-  color: var(--library);
-  margin-top: 3px;
-  line-height: 1.3;
-}
-.loc-bubble {
-  font-size: 11px;
-  background: rgba(76, 214, 164, 0.08);
-  border: 1px solid var(--accent-2);
-  border-radius: 8px;
-  padding: 3px 7px;
-  margin-top: 3px;
-  color: var(--ink);
-  line-height: 1.35;
-}
-.loc-bubble b { color: var(--accent-2); }
-
-/* director world_change tints the whole stage */
-.map.stage--world-change {
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px),
-    radial-gradient(circle at 50% 40%, rgba(124, 156, 255, 0.12), transparent 60%);
-}
-.map.stage--world-change::after {
-  content: "🎬 " attr(data-change);
+/* —— 导演之光:world_change 时的横向扫光 —— */
+.stage.sweep::before {
+  content: "";
   position: absolute;
-  top: 10px;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(232, 165, 75, 0.16) 50%, transparent 70%);
+  animation: sweep 1.4s ease-out forwards;
+}
+@keyframes sweep { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
+
+/* —— 字幕条(lower third):导演注入的临时播报 —— */
+.lower-third {
+  position: absolute;
+  top: var(--s4);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
-  color: var(--accent);
-  background: var(--panel);
-  border: 1px solid var(--accent);
+  z-index: 3;
+  max-width: 86%;
+  padding: var(--s1) var(--s3);
+  background: rgba(9, 13, 19, 0.82);
+  border: 1px solid var(--amber);
   border-radius: 999px;
-  padding: 3px 12px;
+  color: var(--amber-hi);
+  font-size: var(--t-meta);
   white-space: nowrap;
-  max-width: 80%;
   overflow: hidden;
   text-overflow: ellipsis;
+  animation: lower-in var(--d2) ease-out, lower-out 1s ease-in 4s forwards;
+}
+@keyframes lower-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+@keyframes lower-out { to { opacity: 0; } }
+
+/* —— 空舞台 —— */
+.stage-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  color: var(--ink-dim);
+}
+/* 地平线 + 琥珀微光:空舞台不空场 */
+.stage-empty::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  width: 68%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line2) 22%, #3a4c61 50%, var(--line2) 78%, transparent);
+}
+.stage-empty::after {
+  content: "";
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 165, 75, 0.08), transparent 70%);
   pointer-events: none;
 }
-.loc-cafe    { border-top: 3px solid var(--cafe); }
-.loc-park    { border-top: 3px solid var(--park); }
-.loc-library { border-top: 3px solid var(--library); }
-.loc-home    { border-top: 3px solid var(--home); }
-.loc-street  { border-top: 3px solid var(--street); }
+.stage-empty .empty-k {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.5em;
+  padding-left: 0.5em; /* 抵消末字符后的字距,保持视觉居中 */
+  color: var(--amber);
+  opacity: 0.75;
+}
+.stage-empty .big-start {
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--line2);
+  border-radius: var(--r3);
+  padding: var(--s3) var(--s5);
+  cursor: pointer;
+  transition: border-color var(--d1), color var(--d1);
+}
+.stage-empty .big-start:hover { border-color: var(--amber); color: var(--amber-hi); }
+.stage-empty .sub { font-size: var(--t-meta); color: #a8a294; }
 
-/* ─── timeline panel ────────────────────────────────────── */
+/* —— 建筑(地点) —— */
+.bld {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 92px;
+}
+.bld-sil { color: #3a4a5e; filter: drop-shadow(0 0 6px rgba(95, 208, 191, 0)); transition: color var(--d2), filter var(--d2); }
+.bld.lit .bld-sil { color: #56708c; filter: drop-shadow(0 2px 10px rgba(120, 160, 210, 0.25)); }
+.bld-name {
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.bld.arrive .bld-sil { animation: arrive 0.9s ease-out; }
+@keyframes arrive { 0% { filter: drop-shadow(0 0 14px var(--amber)); color: var(--amber); } }
+
+/* —— 居民点:色即状态,悬浮显名,点击开档案 —— */
+.dots { display: flex; gap: 5px; min-height: 12px; }
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: var(--ink);
+  box-shadow: 0 0 7px rgba(233, 227, 214, 0.55);
+  transition: transform var(--d1);
+}
+.dot:hover { transform: scale(1.45); }
+.dot.work { background: var(--amber); box-shadow: 0 0 8px rgba(232, 165, 75, 0.7); }
+.dot.rest { background: #6a7f9c; box-shadow: 0 0 6px rgba(106, 127, 156, 0.5); }
+.dot.talk { background: var(--cyan); box-shadow: 0 0 9px rgba(95, 208, 191, 0.8); }
+
+/* —— 悬浮提示(tooltip 原语) —— */
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-tip);
+  padding: 2px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  border-radius: var(--r1);
+  font-size: var(--t-micro);
+  font-family: var(--sans);
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ═══ 侧栏:故事(主) + 字幕流(次) ═════════════════════════════════ */
 
 .panel {
-  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg1);
   border-left: 1px solid var(--line);
-  padding: 14px 16px;
-  overflow-y: auto;
 }
-.panel h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.panel h2:not(:first-child) { margin-top: 18px; }
 
-/* director injection box */
-.inject { display: flex; gap: 8px; }
-.inject input {
-  flex: 1;
-  min-width: 0;
-  background: var(--panel-2);
+.panel-h {
+  padding: var(--s3) var(--s4) var(--s1);
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  color: var(--ink-dim);
+}
+.panel-h.story-h::before { content: "◆ "; color: var(--amber); }
+
+/* —— 故事卡:衬线正文,读物的层次 —— */
+.stories { padding: 0 var(--s4) var(--s3); }
+.story {
+  background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r2);
+  padding: var(--s3) var(--s4);
+  transition: transform var(--d2);
+}
+.story-latest { border-color: var(--line2); }
+.story-day {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  letter-spacing: 0.14em;
+  margin-bottom: var(--s2);
+}
+.story-text {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--t-body);
+  line-height: 1.75;
   color: var(--ink);
-  padding: 7px 10px;
-  font-size: 13px;
 }
-.inject input:focus { outline: none; border-color: var(--accent); }
-.inject button { white-space: nowrap; }
-.inject-hint { font-size: 11px; color: var(--muted); margin: 6px 0 0; line-height: 1.4; }
-
-/* intro / about — short tagline + collapsible long description */
-.intro { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.intro-tagline { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--ink); }
-.about > summary { cursor: pointer; list-style: none; font-size: 11px; color: var(--muted); }
-.about > summary::-webkit-details-marker { display: none; }
-.about > summary::before { content: "▸ "; }
-.about[open] > summary::before { content: "▾ "; }
-.about-desc { font-size: 12px; line-height: 1.55; color: var(--ink); margin: 8px 0 0; }
-.about-desc b { color: var(--accent-2); }
-
-.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }.timeline li {
-  display: grid;
-  grid-template-columns: 34px 56px 1fr;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 12px;
-  padding: 6px 8px;
-  background: var(--panel-2);
-  border-radius: 6px;
+.story-cliff {
+  margin: var(--s3) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px dashed var(--line2);
+  font-size: var(--t-meta);
+  color: var(--amber-hi);
 }
-.timeline li.empty { color: var(--muted); grid-template-columns: 1fr; justify-content: center; }
-.ev-tick { color: var(--muted); font-variant-numeric: tabular-nums; }
-.ev-type { font-size: 10px; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: #2a2f3a; color: var(--ink); text-align: center; }
-.ev-move  { color: var(--library); }
-.ev-talk  { color: var(--accent-2); }
-.ev-work  { color: var(--cafe); }
-.ev-rest  { color: var(--muted); }
-
-/* ─── day stories ───────────────────────────────────────── */
-
-.stories { display: flex; flex-direction: column; gap: 10px; }
-.stories-empty { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
-.story { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-.story-latest { border-color: var(--accent); }
-.story-day { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-.story-text { margin: 0; font-size: 12.5px; line-height: 1.65; color: var(--ink); }
-.story-cliff { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--accent); }
 .story-cliff::before { content: "⏳ "; }
-.story-old summary { cursor: pointer; list-style: none; font-size: 11px; color: var(--muted); }
+.story-old { margin-top: var(--s2); }
+.story-old summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  padding: var(--s1) 0;
+}
 .story-old summary::-webkit-details-marker { display: none; }
 .story-old summary::before { content: "▸ "; }
 .story-old[open] summary::before { content: "▾ "; }
+.story-old .story { margin-top: var(--s2); }
 
-.status { margin: 0; padding: 8px 16px; font-size: 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); }
-.status.ok   { color: var(--accent-2); }
-.status.err  { color: #ff6b6b; }
-.status.info { color: var(--accent); }
-
-/* ─── 戏点高亮 (M1.4): director injections + high-importance beats ── */
-
-.timeline li.ev-hot {
-  border: 1px solid var(--accent);
-  background: rgba(124, 156, 255, 0.10);
+/* —— 字幕流:事件如台词浮现 —— */
+.subtitles {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 var(--s4) var(--s4);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
 }
-.timeline li.ev-hot .ev-type { background: var(--accent); color: #0b0d12; font-weight: 600; }
-.ev-hot .ev-desc::before { content: "🎬 "; }
+.sub { display: grid; grid-template-columns: 34px 14px 1fr; gap: var(--s1); align-items: baseline; font-size: var(--t-meta); padding: 3px 4px; border-radius: var(--r1); animation: sub-in var(--d2) ease-out; }
+@keyframes sub-in { from { opacity: 0; transform: translateY(6px); } }
+.sub .t { font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.sub .mark { font-size: 9px; text-align: center; }
+.sub .txt { color: var(--ink); overflow-wrap: anywhere; }
+.sub-hot { color: var(--rose); }
+.sub-hot .txt { color: var(--amber-hi); }
+.sub-hot .t { color: var(--rose); }
 
-/* occupant chips are clickable — they open the resident dossier */
-.occupant {
-  display: inline-block;
-  cursor: pointer;
-  border-bottom: 1px dotted var(--muted);
+/* ═══ 底栏:导演指令 ═══════════════════════════════════════════════ */
+
+.director-bar {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s2) var(--s4);
+  background: var(--bg1);
+  border-top: 1px solid var(--line);
 }
-.occupant:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.director-bar input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  border-radius: var(--r1);
+  color: var(--ink);
+  padding: 7px 12px;
+  font-size: var(--t-meta);
+  font-family: var(--sans);
+}
+.director-bar input:focus { outline: none; border-color: var(--amber); }
+.director-bar input::placeholder { color: var(--ink-dim); }
+.director-bar button { white-space: nowrap; }
 
-/* ─── dramatic openings (M1.3) ─────────────────────────── */
+/* ═══ toast ═══════════════════════════════════════════════════════ */
+
+.toast {
+  position: fixed;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  max-width: 82%;
+  padding: var(--s1) var(--s3);
+  background: rgba(13, 19, 28, 0.92);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  font-size: var(--t-meta);
+  font-family: var(--mono);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--d2);
+}
+.toast.show { opacity: 1; }
+.toast.ok { color: var(--cyan); border-color: rgba(95, 208, 191, 0.4); }
+.toast.err { color: var(--rose); border-color: rgba(224, 93, 93, 0.5); }
+.toast.info { color: var(--amber-hi); border-color: rgba(232, 165, 75, 0.4); }
+
+/* ═══ 第一幕:章节卡 ═══════════════════════════════════════════════ */
 
 .openings {
   position: fixed;
   inset: 0;
-  background: rgba(5, 7, 10, 0.72);
+  z-index: var(--z-modal);
+  background: rgba(5, 7, 12, 0.86);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
 }
-.openings-card {
-  width: min(480px, calc(100vw - 32px));
-  background: var(--panel);
-  border: 1px solid var(--accent);
-  border-radius: 14px;
-  padding: 20px 22px;
-  text-align: center;
-}
-.openings-card h3 { margin: 0 0 6px; font-size: 17px; }
-.openings-hint { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
-.openings-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.opening {
-  text-align: left;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px 14px;
-  cursor: pointer;
-  font-size: 13px;
+.chapters { width: min(430px, calc(100vw - 40px)); text-align: center; }
+.chapters-title {
+  margin: 0 0 var(--s4);
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: 0.3em;
   color: var(--ink);
 }
-.opening:hover { border-color: var(--accent); }
-.opening b { display: block; font-size: 14px; margin-bottom: 4px; }
-.opening span { color: var(--muted); line-height: 1.5; font-size: 12px; }
+.chapters-title::after {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 1px;
+  margin: var(--s3) auto 0;
+  background: var(--amber);
+}
+.chapters-list { display: flex; flex-direction: column; gap: var(--s3); margin-bottom: var(--s4); }
+.chapter {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--s3);
+  align-items: center;
+  text-align: left;
+  background: rgba(18, 26, 38, 0.85);
+  border: 1px solid var(--line2);
+  border-radius: var(--r2);
+  padding: var(--s3) var(--s4);
+  cursor: pointer;
+  transition: border-color var(--d1), transform var(--d1);
+}
+.chapter:hover { border-color: var(--amber); transform: translateX(4px); }
+.ch-no { font-family: var(--serif); font-size: 24px; color: var(--amber); }
+.ch-title { display: block; font-family: var(--serif); font-size: var(--t-title); color: var(--ink); }
+.ch-hint { display: block; font-size: var(--t-micro); color: var(--ink-dim); margin-top: 2px; line-height: 1.5; }
+.chapters-skip { background: none; border: none; color: var(--ink-dim); font-size: var(--t-micro); letter-spacing: 0.1em; }
+.chapters-skip:hover { color: var(--ink); }
 
-/* ─── resident dossier modal ───────────────────────────── */
+/* ═══ 居民档案 modal ══════════════════════════════════════════════ */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 7, 10, 0.66);
+  z-index: var(--z-modal);
+  background: rgba(4, 6, 10, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 40;
 }
 .modal {
   position: relative;
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 56px);
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 18px 20px;
+  background: var(--bg1);
+  border: 1px solid var(--line2);
+  border-radius: var(--r3);
+  padding: var(--s4) var(--s5);
 }
-.modal h3 { margin: 0 0 4px; font-size: 18px; }
-.modal h4 { margin: 14px 0 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.modal-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  border: none;
-  background: none;
-  color: var(--muted);
-  font-size: 18px;
-  padding: 2px 8px;
-}
-.agent-meta { margin: 0; font-size: 12px; color: var(--muted); }
+.modal h3 { margin: 0 0 2px; font-family: var(--serif); font-size: var(--t-title); }
+.modal h4 { margin: var(--s4) 0 var(--s1); font-size: var(--t-micro); color: var(--ink-dim); letter-spacing: 0.16em; }
+.modal-close { position: absolute; top: var(--s2); right: var(--s2); border: none; background: none; color: var(--ink-dim); font-size: 16px; padding: 2px 8px; }
+.agent-meta { margin: 0; font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); }
 .agent-goal {
-  margin: 10px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
+  margin: var(--s3) 0 0;
+  font-family: var(--serif);
+  font-size: var(--t-body);
+  line-height: 1.7;
   color: var(--ink);
-  background: rgba(124, 156, 255, 0.08);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 8px 10px;
+  background: rgba(232, 165, 75, 0.06);
+  border-left: 2px solid var(--amber);
+  border-radius: var(--r1);
+  padding: var(--s2) var(--s3);
 }
-.agent-rels { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.agent-rels { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
 .agent-rels li {
   display: grid;
-  grid-template-columns: 1fr auto;
-  font-size: 12px;
-  background: var(--panel-2);
-  border-radius: 6px;
-  padding: 6px 9px;
+  grid-template-columns: 64px 1fr auto;
+  gap: var(--s2);
+  align-items: center;
+  font-size: var(--t-meta);
+  padding: var(--s1) var(--s2);
+  background: var(--bg2);
+  border-radius: var(--r1);
 }
-.rel-familiar { color: var(--accent-2); font-variant-numeric: tabular-nums; }
-.agent-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.agent-events li { font-size: 12px; color: var(--ink); line-height: 1.45; }
-.agent-events .ev-tick { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+/* 亲密度迷你条(bar 原语) */
+.bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--cyan); border-radius: 2px; }
+.agent-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.agent-events li { font-size: var(--t-meta); color: var(--ink); line-height: 1.5; }
+.agent-events .t { font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); margin-right: var(--s1); }

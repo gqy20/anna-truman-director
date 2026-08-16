@@ -43,8 +43,8 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 | `src/truman_director/storage.py` | APS KV 反向 RPC（`KEY="truman:run:world"`，`load`/`save`） |
 | `src/truman_director/errors.py` | `TrumanError` 体系 + 错误码 |
 | `src/truman_director/prompts.yaml` | `SYSTEM_PROMPT`（`sampling.system_prompt`，engine 模块级加载一次） |
-| `bundle/app.js` | UI 接线：`connect` runtime → `invokeWorld` 驱动 `init`/`tick`/`inject_event` → `refresh` 渲染。**只渲染、只接线，不决策** |
-| `bundle/index.html` / `style.css` | 静态 SPA（map + timeline + director 注入框） |
+| `bundle/app.js` | UI 接线：`connect` runtime → `invokeWorld` 驱动 `init`/`tick`/`inject_event` → `refresh` 渲染。**只渲染、只接线，不决策**。`window.__truman` 调试钩子（真机排查用） |
+| `bundle/index.html` / `style.css` | 静态 SPA「导演监视器」：顶栏时间码 + 舞台（剪影/发光点）+ 今日故事/字幕双区 + 导演注入栏；token 制设计系统（DESIGN §8），零字体文件 |
 | `src/_entry.py` | PyInstaller 打包入口 shim（绝对 import，见 binary 分发） |
 | `manifest.json` | `permissions`（`tools.invoke` + host_api）、`required_executas`（`bundled:truman-director`）、`system_prompt_addendum`（平台 Anna 驱动） |
 | `app.json` | App 描述 + `bundled_executas` |

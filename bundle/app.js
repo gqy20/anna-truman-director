@@ -1,18 +1,9 @@
-// Truman Director — bundle (local-Executa, focus-flow).
+// Truman Director — bundle(导演监视器版)。
 //
-// Drives the simulation by invoking the truman-director Executa (the Python
-// stdio plugin in src/truman_director/) over anna.tools.invoke. The bundle
-// never thinks for the agents — every tick the host LLM decides inside the
-// plugin's decide() (with a strict json_schema response_format, which the
-// pure-cloud anna.llm.complete path can't do). The bundle only renders — it
-// reads the snapshot the plugin writes to `truman:run:world` — and drives time
-// forward. Conversation / direction is handled by the platform Anna in the
-// MAIN chat window (see manifest system_prompt_addendum), NOT by an in-bundle
-// Anna. This needs the local Matrix Agent online (the Executa is its child).
-//
-// The minted tool_id is resolved at runtime from window.__ANNA_TOOL_IDS__
-// (written by `anna-app dev` / `apps publish`). The literal below is a dev
-// fallback when no sidecar is present.
+// 渲染层原则(DESIGN §3.6):地图是舞台(剪影+发光点,文字降到悬浮提示),
+// 故事是主角(衬线正文),时间线是字幕流;状态栏是 toast,消息只说一次。
+// 决策永远在插件内由宿主 LLM 完成(decide + json_schema strict),bundle
+// 只渲染 storage 里的同一份快照并驱动时钟——它不思考。
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
 
@@ -33,7 +24,6 @@ let anna = null;
 // ─── boot ───────────────────────────────────────────────────────────
 
 async function boot() {
-  $("btn-init").addEventListener("click", onStart);
   $("btn-tick").addEventListener("click", () => onTick(1));
   $("btn-tick5").addEventListener("click", () => onTick(5));
   $("btn-inject").addEventListener("click", onInject);
@@ -44,10 +34,11 @@ async function boot() {
     }
   });
 
-  // Resident dossier: occupant chips on the map open the modal (M1.4).
+  // 舞台事件委托:居民点 → 档案;空舞台大按钮 → 开镇。
   $("map").addEventListener("click", (e) => {
-    const chip = e.target.closest(".occupant");
-    if (chip?.dataset.agentId) showAgent(chip.dataset.agentId);
+    const dot = e.target.closest(".dot");
+    if (dot?.dataset.agentId) return showAgent(dot.dataset.agentId);
+    if (e.target.closest(".big-start")) return onStart();
   });
   $("agent-close").addEventListener("click", () => ($("agent-modal").hidden = true));
   $("agent-modal").addEventListener("click", (e) => {
@@ -57,9 +48,9 @@ async function boot() {
     if (e.key === "Escape") $("agent-modal").hidden = true;
   });
 
-  // Dramatic openings (M1.3): one tap = inject + auto-run 3 ticks.
+  // 第一幕(M1.3):章节卡一键开场。
   $("openings-list").addEventListener("click", (e) => {
-    const card = e.target.closest(".opening");
+    const card = e.target.closest(".chapter");
     if (card?.dataset.openingId) pickOpening(card.dataset.openingId);
   });
   $("openings-skip").addEventListener("click", () => ($("openings").hidden = true));
@@ -67,16 +58,10 @@ async function boot() {
   try {
     anna = await AnnaAppRuntime.connect();
     const live = await refresh();
-    if (live) {
-      enableTick(true);
-      setStatus(`Town reloaded — ${$("tick-meta").textContent}.`, "ok");
-    } else {
-      setStatus("Connected. 按 “Start town”,或在主聊天窗让 Anna 帮你开个小镇。", "ok");
-    }
-    // Re-adopt any tick job still running from before a reload (M1.6).
-    recoverJobs().catch(() => {});
+    if (live) enableTick(true);
+    if (typeof anna.tools?.listJobs === "function") recoverJobs().catch(() => {});
   } catch (err) {
-    setStatus(`Runtime unavailable: ${err.message || err}`, "err");
+    setStatus(`连接失败:${err.message || err}`, "err", 0);
   }
 }
 
@@ -86,48 +71,45 @@ async function invokeWorld(args) {
     method: "world",
     args,
   });
-  // Tolerate the runtime's return shapes: plugin envelope {success,data},
-  // call-API style {ok,result}, or a bare payload. Only treat an explicit
-  // falsy success/ok as failure.
+  // 容忍三种返回形态:插件信封 {success,data} / call API {ok,result} / 裸载荷。
   const ok = res?.success ?? res?.ok ?? true;
   const data = res?.data ?? res?.result ?? res;
-  if (!ok) {
-    throw new Error(res?.error || res?.message || "invoke failed");
-  }
+  if (!ok) throw new Error(res?.error || res?.message || "invoke failed");
   return data;
 }
 
 // ─── actions ────────────────────────────────────────────────────────
 
 async function onStart() {
-  if (!anna) return setStatus("Not connected.", "err");
-  setStatus("Starting town…", "info");
+  if (!anna) return;
+  setStatus("开镇…", "info");
   enableTick(false);
   try {
     await invokeWorld({ action: "init", scenario: SCENARIO });
     await refresh();
     enableTick(true);
-    setStatus("Town is live.", "ok");
-    // First-minute stakes (M1.3): offer three dramatic openings instead of
-    // "watching people drink coffee". Failure to load openings is not fatal.
+    setStatus("开镇", "ok");
     showOpenings().catch(() => {});
   } catch (err) {
-    setStatus(`init failed: ${err.message || err}`, "err");
+    setStatus(friendlyError(err), "err", 0);
   }
 }
 
-// ─── dramatic openings (M1.3) ────────────────────────────────────────
+// ─── 第一幕:戏剧开场(M1.3) ─────────────────────────────────────────
+
+const CH_NO = ["壹", "贰", "叁", "肆"];
 
 async function showOpenings() {
   const out = await invokeWorld({ action: "list_scenarios" });
   const openings = out?.openings || [];
   if (!openings.length) return;
-  const list = $("openings-list");
-  list.innerHTML = openings
+  $("openings-list").innerHTML = openings
     .map(
-      (o) =>
-        `<button class="opening" data-opening-id="${escapeHtml(o.id)}">` +
-        `<b>${escapeHtml(o.title)}</b><span>${escapeHtml(o.hint)}</span></button>`,
+      (o, i) =>
+        `<button class="chapter" data-opening-id="${escapeHtml(o.id)}">` +
+        `<span class="ch-no">${CH_NO[i] ?? i + 1}</span>` +
+        `<span><span class="ch-title">${escapeHtml(o.title)}</span>` +
+        `<span class="ch-hint">${escapeHtml(o.hint)}</span></span></button>`,
     )
     .join("");
   $("openings").hidden = false;
@@ -139,44 +121,45 @@ async function pickOpening(openingId) {
     const out = await invokeWorld({ action: "list_scenarios" });
     const opening = (out?.openings || []).find((o) => o.id === openingId);
     if (!opening) return;
-    setStatus(`🎬 开场:${opening.title} — 正在上演…`, "info");
+    setStatus("开场…", "info", 0);
     enableTick(false);
     await invokeWorld({ action: "inject_event", event: opening.event });
-    // Three sequential single-tick invokes (not n=3): each keeps its own
-    // sampling budget and its own ≤90s sync ceiling, matching onTick's loop.
+    // 顺序 3 个单 tick invoke(非 n=3):各自预算、各自 ≤90s 同步上限。
     for (let i = 0; i < 3; i++) {
       await invokeWorld({ action: "tick", n: 1 });
       await refresh();
       await sleep(280);
     }
-    setStatus(`开场已生效:${opening.title}。故事开始了。`, "ok");
+    setStatus("已开场", "ok");
   } catch (err) {
-    setStatus(`opening failed: ${err.message || err}`, "err");
+    setStatus(friendlyError(err), "err", 0);
   } finally {
     enableTick(true);
   }
 }
 
-// ─── ticking: async job channel first, sync loop fallback (M1.6) ────
-// Multi-tick runs go through anna.tools.invokeAsyncAwait: one job carries the
-// whole run under its own deadline (sync invokes are hard-clamped to 90s), the
-// plugin emits executa/progress per tick, and a reload can re-adopt the job
-// via listJobs/getJob. Single ticks stay sync (fast, and the fallback path
-// keeps working on older hosts without the job channel).
+// ─── ticking:async job 优先,sync 循环兜底(M1.6) ──────────────────────
 
 const CLIENT_TAG = "truman-director";
 
-// "this host has no job channel" arrives as different error codes depending on
-// the runtime: the platform returns not_implemented, the local dev harness
-// returns unknown_method (tools.listJobs is not defined — observed live in
-// anna-app dev 0.1.30). Treat both as "fall back to the sync loop".
+// job 通道缺失的报错因 runtime 而异:平台是 not_implemented,本地 harness 是
+// unknown_method(实测 anna-app dev 0.1.30)——两种都回退 sync 循环。
 function isJobChannelMissing(err) {
   return err?.code === "not_implemented" || err?.code === "unknown_method";
 }
 
+// 已知平台错误 → 一句人话(其余原样透传,失败要响亮但不刷屏)。
+function friendlyError(err) {
+  const s = err?.message || String(err);
+  if (s.includes("APP_QUOTA_EXCEEDED") || s.includes("Subscription expired"))
+    return "平台配额用尽——请到 Anna 客户端处理订阅后重试";
+  if (s.includes("timed out")) return "调用超时,稍后再试";
+  return s;
+}
+
 async function onTick(n) {
   if (!anna) return;
-  setStatus(`Advancing ${n} tick(s)…`, "info");
+  setStatus(`t+${n}…`, "info");
   enableTick(false);
   try {
     if (n > 1 && typeof anna.tools?.invokeAsyncAwait === "function") {
@@ -186,9 +169,9 @@ async function onTick(n) {
     }
   } catch (err) {
     if (n > 1 && isJobChannelMissing(err)) {
-      await tickSync(n); // host without the job channel (see isJobChannelMissing)
+      await tickSync(n);
     } else {
-      setStatus(`tick failed: ${err.message || err}`, "err");
+      setStatus(friendlyError(err), "err", 0);
     }
   } finally {
     enableTick(true);
@@ -201,55 +184,43 @@ async function tickAsync(n) {
       tool_id: EXECUTA_TOOL_ID,
       method: "world",
       args: { action: "tick", n },
-      // Budget: generous margin over ticks (each ≤ one sampling call), min 60s
-      // (policy floor). Sync 90s ceiling doesn't apply to job deadlines.
       timeoutMs: Math.max(60_000, 15_000 * n),
       clientTag: CLIENT_TAG,
     },
     {
       onProgress: (ev) => {
         const d = ev?.data || {};
-        if (d.kind === "day_story") {
-          setStatus(`📖 第 ${d.day} 天的故事写好了。`, "info");
-        } else if (d.tick != null) {
-          setStatus(`推进中 t${d.tick}(day ${d.world_time ?? ""})…`, "info");
-        }
-        refresh().catch(() => {}); // snapshot already persisted per tick
+        if (d.kind === "day_story") setStatus("📖 新的一天", "info");
+        else if (d.tick != null) setStatus(`t${d.tick}…`, "info");
+        refresh().catch(() => {});
       },
     },
   );
   await refresh();
-  const data = res?.data ?? res;
-  const results = data?.results || [];
+  const results = (res?.data ?? res)?.results || [];
   const last = results.at(-1);
-  setStatus(`Advanced to tick ${last?.tick ?? "?"}.`, "ok");
+  setStatus(`t${last?.tick ?? "?"} ✓`, "ok");
 }
 
 async function tickSync(n) {
-  // Legacy path: loop of single-tick invokes — each carries its own sampling
-  // budget and stays under the 90s sync ceiling.
-  let last = null;
   for (let i = 0; i < n; i++) {
-    last = await invokeWorld({ action: "tick", n: 1 });
+    await invokeWorld({ action: "tick", n: 1 });
     await refresh();
-    await sleep(280); // pacing — keeps the UI responsive, eases rate limits
+    await sleep(280);
   }
-  setStatus(`Advanced to tick ${last.results.at(-1).tick}.`, "ok");
 }
 
-// Reload recovery (M1.6): find OUR in-flight tick jobs and re-adopt them —
-// progress continues from lastSeq, terminal state resolves like a fresh run.
+// 重载恢复(M1.6):重新挂接我们的进行中 job。
 async function recoverJobs() {
-  if (typeof anna.tools?.listJobs !== "function") return;
   let out;
   try {
     out = await anna.tools.listJobs({ clientTag: CLIENT_TAG, state: ["queued", "running"] });
   } catch (err) {
-    if (isJobChannelMissing(err)) return; // no job channel on this host — fine
+    if (isJobChannelMissing(err)) return;
     throw err;
   }
   for (const job of out.jobs || []) {
-    setStatus("发现进行中的推进,正在重新接上…", "info");
+    setStatus("接续推进…", "info");
     enableTick(false);
     pollJob(job.jobId, 0).finally(() => enableTick(true));
   }
@@ -260,26 +231,20 @@ async function pollJob(jobId, sinceSeq) {
   for (;;) {
     const snap = await anna.tools.getJob({ jobId, sinceSeq: seq });
     for (const ev of snap.progress || []) {
-      const d = ev?.data || {};
-      if (d.tick != null) setStatus(`推进中 t${d.tick}…`, "info");
+      if (ev?.data?.tick != null) setStatus(`t${ev.data.tick}…`, "info");
     }
     if (snap.progress?.length) seq = snap.lastSeq;
     if (["succeeded", "failed", "cancelled", "expired"].includes(snap.state)) {
       await refresh();
-      setStatus(
-        snap.state === "succeeded" ? "推进完成。" : `job ${snap.state}`,
-        snap.state === "succeeded" ? "ok" : "err",
-      );
+      setStatus(snap.state === "succeeded" ? "✓" : snap.state, snap.state === "succeeded" ? "ok" : "err");
       return;
     }
     await sleep(2000);
   }
 }
 
-// Director injection: parse the input as a spec (full JSON) or fall back to a
-// free-text world_change (a storm breaking out, a stranger arriving). The
-// plugin queues it to fire at the next tick, BEFORE the model decides that
-// tick — so residents react in the same tick the director's hand lands.
+// ─── 导演注入 ───────────────────────────────────────────────────────
+
 async function onInject() {
   if (!anna) return;
   const raw = ($("inject-input").value || "").trim();
@@ -289,7 +254,6 @@ async function onInject() {
     try {
       spec = JSON.parse(raw);
     } catch {
-      setStatus("Inject JSON malformed — treating as free text.", "info");
       spec = { reason: raw };
     }
   } else {
@@ -298,63 +262,149 @@ async function onInject() {
   try {
     const ack = await invokeWorld({ action: "inject_event", event: spec });
     $("inject-input").value = "";
-    setStatus(
-      `🎬 queued: “${spec.reason ?? JSON.stringify(spec)}” — fires at tick ${ack.effective_tick}.`,
-      "info",
-    );
+    setStatus(`🎬 t${ack.effective_tick} 生效`, "info");
   } catch (err) {
-    setStatus(`inject failed: ${err.message || err}`, "err");
+    setStatus(friendlyError(err), "err", 0);
   }
 }
 
-// ─── render ─────────────────────────────────────────────────────────
-// Reads the snapshot straight from storage (the single source of truth) and
-// renders motion / conversation / director changes — never thinks for agents.
+// ─── render:只读快照,不思考 ─────────────────────────────────────────
+
+// 真机调试钩子:opencli/控制台可直接驱动内部动作,不进 UI。
+window.__truman = { invokeWorld, refresh, onStart, showOpenings };
+
+let lastStoryDay = null; // cliffhanger 定格检测
+let lastMaxTick = -1; // 字幕"新条目"动画判定
 
 async function refresh() {
   if (!anna) return false;
   const r = await anna.storage.get({ key: WORLD_KEY });
-  // Tolerate {exists,value} | {ok,result:{exists,value}} | bare payload.
   const payload = r?.result ?? r;
   const world = payload?.value ?? null;
-  if (!world) return false;
-  $("clock").textContent = world.world_time;
-  $("tick-meta").textContent = `tick ${world.current_tick} · day ${world.day || 1}`;
-  renderMap(world);
-  renderTimeline(world);
+  if (!world) {
+    renderStageEmpty();
+    return false;
+  }
+  renderTimecode(world);
+  renderStage(world);
   renderStories(world);
+  renderSubtitles(world);
+  lastMaxTick = world.events?.length ? world.events[world.events.length - 1].tick : -1;
   return true;
 }
 
-// ─── day stories (M1.5) ──────────────────────────────────────────────
-// Stories live in the snapshot the plugin writes — render straight from it.
-// The latest day is the emotional headline (story + cliffhanger); older days
-// collapse so the panel stays about TODAY.
+function renderStageEmpty() {
+  $("map").innerHTML =
+    `<div class="stage-empty">` +
+    `<span class="empty-k">STANDBY</span>` +
+    `<button class="big-start">开 镇</button>` +
+    `<span class="sub">没有剧本——居民的每个动作,都是 AI 此刻的决定</span>` +
+    `</div>`;
+}
+
+function renderTimecode(world) {
+  const tick = String(world.current_tick ?? 0).padStart(3, "0");
+  $("timecode").innerHTML =
+    `第 ${world.day || 1} 天 <span class="tc-dim">·</span> ${escapeHtml(world.world_time || "--:--")}` +
+    ` <span class="tc-dim">·</span> t${tick}<span class="tc-caret"></span>`;
+}
+
+// 建筑剪影(内联 SVG,CSP 'self' 安全;色由 currentColor 控制)
+const SILS = {
+  cafe:
+    '<path d="M4 11h24v-4H4zM4 12c0 2 1.6 3.4 3.4 3.4S10.8 14 10.8 12c0 2 1.6 3.4 3.4 3.4s3.4-1.4 3.4-3.4c0 2 1.6 3.4 3.4 3.4s3.4-1.4 3.4-3.4"/>' +
+    '<path d="M11 28v-8a5 5 0 0 1 10 0v8h-3v-7h-4v7z"/><path d="M22 21h2.6a2.2 2.2 0 0 1 0 4.4H22"/>',
+  park:
+    '<path d="M16 3l7 10h-4l7 11H6l7-11H9z"/><path d="M14 26h4v6h-4z"/>',
+  library:
+    '<path d="M3 12L16 4l13 8zM6 26h4V14H6zm8 0h4V14h-4zm8 0h4V14h-4zM3 28h26v-2H3z"/>',
+  home:
+    '<path d="M5 30V15L16 6l11 9v15h-8v-8h-6v8z"/>',
+  street:
+    '<path d="M15 30h2V12h-2z"/><path d="M16 4l5 6H11z"/><circle cx="16" cy="13" r="2.4"/>',
+};
+
+const ACT_ZH = { work: "工作中", rest: "休息" };
+
+function renderStage(world) {
+  const stage = $("map");
+  const events = world.events || [];
+  const newest = events[events.length - 1];
+  const injecting = newest && newest.event_type === "world_change";
+
+  // 近期动态(只取快照尾部,纯派生):谁刚到达、谁在交谈
+  const tail = events.slice(-8);
+  const arrivals = new Set(
+    tail.filter((e) => e.event_type === "move" && e.location_id).map((e) => e.location_id),
+  );
+  const talking = new Set();
+  for (const e of tail) {
+    if (e.event_type === "talk") {
+      if (e.actor_agent_id) talking.add(e.actor_agent_id);
+      if (e.target_agent_id) talking.add(e.target_agent_id);
+    }
+  }
+
+  const byLoc = {};
+  for (const id of Object.keys(world.locations || {})) byLoc[id] = [];
+  for (const [id, a] of Object.entries(world.agents || {})) {
+    (byLoc[a.current_location_id] ||= []).push(id);
+  }
+
+  let html = "";
+  for (const loc of Object.values(world.locations || {})) {
+    const dots = (byLoc[loc.id] || [])
+      .map((id) => {
+        const a = world.agents[id];
+        const cls = talking.has(id) ? "talk" : a?.current_activity || "idle";
+        const tip = escapeHtml(`${a?.name || id}${ACT_ZH[a?.current_activity] ? " · " + ACT_ZH[a.current_activity] : ""}`);
+        return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" data-tip="${tip}"></button>`;
+      })
+      .join("");
+    html +=
+      `<div class="bld ${dots ? "lit" : ""} ${arrivals.has(loc.id) ? "arrive" : ""}" ` +
+      `style="left:${loc.x}%;top:${loc.y}%">` +
+      `<svg class="bld-sil" width="34" height="34" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">${
+        SILS[loc.type] || SILS.street
+      }</svg>` +
+      `<div class="dots">${dots}</div>` +
+      `<span class="bld-name">${escapeHtml(loc.name)}</span>` +
+      `</div>`;
+  }
+  if (injecting) {
+    // 最新事件仍是注入 → 扫光 + 字幕条;居民反应落下后自然消失。
+    stage.classList.add("sweep");
+    html += `<div class="lower-third">🎬 ${escapeHtml(newest.description || newest.reason || "")}</div>`;
+  } else {
+    stage.classList.remove("sweep");
+  }
+  stage.innerHTML = html;
+}
 
 function renderStories(world) {
   const el = $("stories");
   const stories = world.stories || [];
   if (!stories.length) {
-    el.innerHTML = `<p class="stories-empty">第一天的故事,会在小镇跨过午夜时写好。</p>`;
+    el.innerHTML = `<p class="story-day" style="text-align:center;padding:8px 0">午夜后生成</p>`;
     return;
   }
   const latest = stories[stories.length - 1];
   const older = stories.slice(0, -1);
   el.innerHTML =
     `<article class="story story-latest">` +
-    `<div class="story-day">Day ${latest.day}</div>` +
+    `<div class="story-day">第 ${latest.day} 天</div>` +
     `<p class="story-text">${escapeHtml(latest.story)}</p>` +
     (latest.cliffhanger ? `<p class="story-cliff">${escapeHtml(latest.cliffhanger)}</p>` : "") +
     `</article>` +
     (older.length
-      ? `<details class="story story-old"><summary>前 ${older.length} 天</summary>` +
+      ? `<details class="story-old"><summary>前 ${older.length} 天</summary>` +
         older
           .slice()
           .reverse()
           .map(
             (s) =>
-              `<article class="story" style="margin-top:8px">` +
-              `<div class="story-day">Day ${s.day}</div>` +
+              `<article class="story">` +
+              `<div class="story-day">第 ${s.day} 天</div>` +
               `<p class="story-text">${escapeHtml(s.story)}</p>` +
               (s.cliffhanger ? `<p class="story-cliff">${escapeHtml(s.cliffhanger)}</p>` : "") +
               `</article>`,
@@ -362,111 +412,37 @@ function renderStories(world) {
           .join("") +
         `</details>`
       : "");
-}
 
-// ─── scene derivation (snapshot → recent moves / talks / world_change) ─
-// Pure functions: flatten the event list into per-location scene bits so the
-// map shows *motion* and *conversation*, not just static occupants. A move
-// event carries location_id (its destination); a talk event doesn't, so the
-// bubble anchors at the speaker's current_location_id (best effort).
-
-function deriveScene(world) {
-  const ev = [...(world.events || [])].reverse(); // newest first
-  return {
-    moves: ev.filter((e) => e.event_type === "move").slice(0, 4),
-    talks: ev.filter((e) => e.event_type === "talk").slice(0, 3),
-    worldChange: ev.find((e) => e.event_type === "world_change"),
-  };
-}
-
-function agentName(world, id) {
-  return world.agents?.[id]?.name || id || "?";
-}
-
-function renderMap(world) {
-  const map = $("map");
-  map.innerHTML = "";
-  const { moves, talks, worldChange } = deriveScene(world);
-  const movesAt = {};
-  for (const m of moves) (movesAt[m.location_id] ||= []).push(m);
-  const talksAt = {};
-  for (const t of talks) {
-    const lid = world.agents?.[t.actor_agent_id]?.current_location_id;
-    if (lid) (talksAt[lid] ||= []).push(t);
+  // cliffhanger 定格:新的一天写完时,整窗片刻凝滞(§3.6 戏点)。
+  if (lastStoryDay !== null && latest.day !== lastStoryDay) {
+    document.body.classList.add("freeze");
+    setTimeout(() => document.body.classList.remove("freeze"), 1400);
   }
-
-  // A director world_change tints the whole stage so the user feels the
-  // director's hand (storm / blackout / festival ...).
-  const changeText = worldChange?.description || worldChange?.reason || "";
-  map.classList.toggle("stage--world-change", !!worldChange);
-  map.dataset.change = changeText;
-
-  for (const loc of Object.values(world.locations)) {
-    const node = document.createElement("div");
-    node.className = `loc loc-${loc.type}`;
-    node.style.left = `${loc.x}%`;
-    node.style.top = `${loc.y}%`;
-    const occupants = (loc.occupants || [])
-      .map((id) => {
-        const a = world.agents[id];
-        const name = a?.name || id;
-        // Surface current_activity (idle/work/rest) — work/rest are now real
-        // state, not log-only lines, so the map should show who's on shift.
-        const act = a?.current_activity;
-        const label = act && act !== "idle" ? `${name} · ${act}` : name;
-        // Clickable chip → resident dossier (M1.4)
-        return `<span class="occupant" data-agent-id="${escapeHtml(id)}">${escapeHtml(label)}</span>`;
-      })
-      .join(" ");
-    const moveBits = (movesAt[loc.id] || [])
-      .map(
-        (m) =>
-          `<div class="loc-move">→ ${escapeHtml(agentName(world, m.actor_agent_id))}` +
-          (m.description ? ` · ${escapeHtml(m.description)}` : "") +
-          `</div>`,
-      )
-      .join("");
-    const talkBubbles = (talksAt[loc.id] || [])
-      .map(
-        (t) =>
-          `<div class="loc-bubble"><b>${escapeHtml(agentName(world, t.actor_agent_id))}</b>` +
-          (t.description ? `: ${escapeHtml(t.description)}` : "") +
-          `</div>`,
-      )
-      .join("");
-    node.innerHTML =
-      `<span class="loc-name">${escapeHtml(loc.name)}</span>` +
-      `<span class="loc-who">${occupants ? escapeHtml(occupants) : "—"}</span>` +
-      moveBits +
-      talkBubbles;
-    map.appendChild(node);
-  }
+  lastStoryDay = latest.day;
 }
 
-function renderTimeline(world) {
+const SUB_MARK = {
+  move: "→", talk: "●", work: "▮", rest: "·",
+  world_change: "▲", director_inject: "▲",
+};
+
+function renderSubtitles(world) {
   const tl = $("timeline");
-  const events = [...(world.events || [])].reverse().slice(0, 30);
-  if (!events.length) {
-    tl.innerHTML = `<li class="empty">Nothing has happened yet.</li>`;
-    return;
-  }
+  const events = [...(world.events || [])].reverse().slice(0, 40);
   tl.innerHTML = events
     .map((e) => {
-      // 戏点高亮 (§3.6): director injections + high-importance beats — the
-      // deterministic signals, before narrate starts marking turns (M2).
       const hot = e.event_type === "world_change" || (e.importance ?? 0) >= 0.8;
       return (
-        `<li class="${hot ? "ev-hot" : ""}"><span class="ev-tick">t${e.tick}</span>` +
-        `<span class="ev-type ev-${e.event_type}">${e.event_type}</span>` +
-        `<span class="ev-desc">${escapeHtml(e.description || e.reason || "")}</span></li>`
+        `<li class="sub ${hot ? "sub-hot" : ""}">` +
+        `<span class="t">t${e.tick}</span>` +
+        `<span class="mark">${SUB_MARK[e.event_type] ?? "·"}</span>` +
+        `<span class="txt">${escapeHtml(e.description || e.reason || "")}</span></li>`
       );
     })
     .join("");
 }
 
-// ─── resident dossier (M1.4) ─────────────────────────────────────────
-// Clicking an occupant chip opens the full dossier from get_agent —
-// goal (inner life), relationships with names, recent involvement.
+// ─── 居民档案(M1.4) ─────────────────────────────────────────────────
 
 async function showAgent(agentId) {
   const modal = $("agent-modal");
@@ -476,42 +452,44 @@ async function showAgent(agentId) {
     const d = await invokeWorld({ action: "get_agent", agent_id: agentId });
     const a = d.agent;
     $("agent-name").textContent = a.name;
-    $("agent-meta").textContent =
-      `${a.occupation} · ${a.current_activity} · at ${d.location?.name ?? "?"}`;
+    $("agent-meta").textContent = `${a.occupation} · ${d.location?.name ?? "?"}`;
     $("agent-goal").textContent = a.goal || "";
     $("agent-goal").style.display = a.goal ? "" : "none";
     $("agent-rels").innerHTML = (d.relationships || [])
       .map(
         (r) =>
-          `<li><span>${escapeHtml(r.name)}${r.last_interaction_tick ? ` · 上次交谈 t${r.last_interaction_tick}` : ""}</span>` +
-          `<span class="rel-familiar">熟识 ${(r.familiarity * 100).toFixed(0)}%</span></li>`,
+          `<li><span>${escapeHtml(r.name)}</span>` +
+          `<span class="bar"><i style="width:${Math.round(r.familiarity * 100)}%"></i></span>` +
+          `<span class="t">${Math.round(r.familiarity * 100)}%</span></li>`,
       )
       .join("");
     $("agent-events").innerHTML = (d.recent_events || [])
       .slice()
       .reverse()
-      .map(
-        (e) =>
-          `<li><span class="ev-tick">t${e.tick}</span>${escapeHtml(e.description || e.event_type)}</li>`,
-      )
+      .map((e) => `<li><span class="t">t${e.tick}</span>${escapeHtml(e.description || e.event_type)}</li>`)
       .join("");
   } catch (err) {
     $("agent-name").textContent = agentId;
-    $("agent-meta").textContent = `get_agent failed: ${err.message || err}`;
+    $("agent-meta").textContent = err.message || String(err);
   }
 }
 
+// ─── 基础设施 ───────────────────────────────────────────────────────
+
 function enableTick(on) {
-  // Tick + inject need a live world.
   $("btn-tick").disabled = !on;
   $("btn-tick5").disabled = !on;
   $("btn-inject").disabled = !on;
 }
 
-function setStatus(msg, kind) {
+let toastTimer = null;
+// kind: ok | err | info;hold=0 表示不自动消失(进行中/错误态)。
+function setStatus(msg, kind = "info", holdMs = 3200) {
   const el = $("status");
   el.textContent = msg;
-  el.className = `status ${kind || ""}`;
+  el.className = `toast show ${kind}`;
+  clearTimeout(toastTimer);
+  if (holdMs > 0) toastTimer = setTimeout(() => el.classList.remove("show"), holdMs);
 }
 
 function escapeHtml(s) {

@@ -1,79 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Truman Town</title>
+  <title>楚门镇</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">World Director</div>
-    <div class="clock" id="clock">--:--</div>
-    <div class="tick-meta" id="tick-meta">tick 0</div>
-    <div class="spacer"></div>
-    <button id="btn-init" class="primary">Start town</button>
-    <button id="btn-tick" class="ghost" disabled>+1 tick</button>
-    <button id="btn-tick5" class="ghost" disabled>+5 ticks</button>
+    <div class="brand">楚门镇</div>
+    <div class="timecode" id="timecode">--:--<span class="tc-caret"></span></div>
+    <button id="btn-tick" class="ghost icon" disabled title="推进 1 tick">▶</button>
+    <button id="btn-tick5" class="ghost icon" disabled title="推进 5 ticks">⏩</button>
   </header>
 
-  <main class="stage">
-    <section class="map" id="map" aria-label="Town map"></section>
+  <main class="stage-wrap">
+    <section class="stage" id="map" aria-label="小镇舞台"></section>
 
     <aside class="panel">
-      <div class="intro">
-        <p class="intro-tagline">Observe, record, and direct a mini AI town's natural evolution.</p>
-        <details class="about">
-          <summary>What is this?</summary>
-          <p class="about-desc">A mini AI town where a handful of residents live, interact, and evolve. Every tick, each resident's action comes straight from the host LLM — no rule engine, no script. You're the director: press <b>+1 tick</b> to let the town breathe on its own, or drop in events (a storm, a stranger, a festival) from the box below to steer it.</p>
-        </details>
-      </div>
-
-      <h2>Director</h2>
-      <div class="inject">
-        <input id="inject-input" type="text" placeholder="A storm rolls in…" aria-label="Director injection" />
-        <button id="btn-inject" class="ghost" disabled>Inject</button>
-      </div>
-      <p class="inject-hint">Fires on the next tick, before residents react. Free text = a world event; or paste JSON.</p>
-
-      <h2>Story</h2>
+      <div class="panel-h story-h">今日故事</div>
       <div class="stories" id="stories"></div>
-
-      <h2>Timeline</h2>
-      <ol class="timeline" id="timeline"><li class="empty">No world yet. Press “Start town”. 没有剧本——居民的每个动作,都是 AI 此刻的决定。</li></ol>
+      <div class="panel-h">字幕</div>
+      <ol class="subtitles" id="timeline"></ol>
     </aside>
   </main>
 
-  <p class="status" id="status"></p>
+  <footer class="director-bar">
+    <input id="inject-input" type="text" placeholder="下一场戏,由你说了算——比如:暴雨将至" aria-label="导演注入" />
+    <button id="btn-inject" class="primary" disabled>🎬 注入</button>
+  </footer>
 
-  <!-- dramatic openings (M1.3): three one-tap starts offered right after init,
-       so the first minute of a fresh town has stakes -->
+  <p class="toast" id="status"></p>
+
+  <!-- 第一幕:戏剧开场(章节卡) -->
   <div class="openings" id="openings" hidden>
-    <div class="openings-card">
-      <h3>今天,从哪一幕开始?</h3>
-      <p class="openings-hint">选一个开场,小镇会立刻演起来。也可以跳过,让镇子自己醒来。</p>
-      <div class="openings-list" id="openings-list"></div>
-      <button class="ghost" id="openings-skip">跳过,安静地开始</button>
+    <div class="chapters">
+      <h3 class="chapters-title">第一幕</h3>
+      <div class="chapters-list" id="openings-list"></div>
+      <button class="chapters-skip" id="openings-skip">静场开场</button>
     </div>
   </div>
 
-  <!-- resident dossier (M1.4): opened by clicking an occupant chip on the map -->
+  <!-- 居民档案 -->
   <div class="modal-backdrop" id="agent-modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="agent-name">
-      <button class="modal-close" id="agent-close" aria-label="Close">×</button>
+      <button class="modal-close" id="agent-close" aria-label="关闭">×</button>
       <h3 id="agent-name">—</h3>
       <p class="agent-meta" id="agent-meta"></p>
       <p class="agent-goal" id="agent-goal"></p>
-      <h4>Relationships</h4>
+      <h4>关系</h4>
       <ul class="agent-rels" id="agent-rels"></ul>
-      <h4>Recent events</h4>
+      <h4>近事</h4>
       <ol class="agent-events" id="agent-events"></ol>
     </div>
   </div>
 
   <!-- tool_id mapping (handle → minted id) must load BEFORE app.js reads it -->
   <script src="anna-tool-ids.js"></script>
-  <!-- Loaded as a native ES module; imports the Anna App Runtime SDK. -->
   <script src="app.js" type="module"></script>
 </body>
 </html>
