@@ -25,6 +25,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_alice_home": Location(
                 id="loc_alice_home",
                 name="Alice's Apartment",
+                name_zh="爱丽丝的公寓",
                 type=LocationType.HOME,
                 x=20,
                 y=30,
@@ -34,6 +35,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_bob_home": Location(
                 id="loc_bob_home",
                 name="Bob's House",
+                name_zh="鲍勃的家",
                 type=LocationType.HOME,
                 x=75,
                 y=70,
@@ -43,6 +45,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_truman_home": Location(
                 id="loc_truman_home",
                 name="Truman's Place",
+                name_zh="楚门的小屋",
                 type=LocationType.HOME,
                 x=50,
                 y=80,
@@ -52,6 +55,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_cafe": Location(
                 id="loc_cafe",
                 name="Bean & Bite",
+                name_zh="豆香咖啡馆",
                 type=LocationType.CAFE,
                 x=55,
                 y=40,
@@ -61,6 +65,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_park": Location(
                 id="loc_park",
                 name="Riverside Park",
+                name_zh="河滨公园",
                 type=LocationType.PARK,
                 x=30,
                 y=65,
@@ -70,6 +75,7 @@ def _cafe_town(start: datetime) -> WorldState:
             "loc_library": Location(
                 id="loc_library",
                 name="Town Library",
+                name_zh="镇图书馆",
                 type=LocationType.LIBRARY,
                 x=80,
                 y=25,
@@ -81,7 +87,9 @@ def _cafe_town(start: datetime) -> WorldState:
             "alice": Agent(
                 id="alice",
                 name="Alice",
+                name_zh="爱丽丝",
                 occupation="Barista",
+                occupation_zh="咖啡师",
                 home_location_id="loc_alice_home",
                 current_location_id="loc_alice_home",
                 personality={
@@ -92,13 +100,20 @@ def _cafe_town(start: datetime) -> WorldState:
                 },
                 # Dramatic seed (DESIGN §3 L2 / M1.2): tension is baked into the
                 # initial conditions — no behavior rules, the model reads the
-                # goal and plays it out.
+                # goal and plays it out. goal 是中文原文,goal_en 是英文镜像,
+                # engine 按 world.lang 选用。
                 goal="偷偷期待 Bob 今天会不会来店里,想多和他说几句话,又怕被看穿心事。",
+                goal_en=(
+                    "Secretly hoping Bob will stop by the cafe today — wanting a few "
+                    "more words with him, and terrified someone will notice."
+                ),
             ),
             "bob": Agent(
                 id="bob",
                 name="Bob",
+                name_zh="鲍勃",
                 occupation="Freelance Writer",
+                occupation_zh="自由撰稿人",
                 home_location_id="loc_bob_home",
                 current_location_id="loc_bob_home",
                 personality={
@@ -108,11 +123,17 @@ def _cafe_town(start: datetime) -> WorldState:
                     "agreeableness": 0.6,
                 },
                 goal="本周必须交出小说终稿,可灵感迟迟不来,越焦虑越写不出来。",
+                goal_en=(
+                    "The final draft of his novel is due this week, but inspiration "
+                    "won't come — the more anxious he gets, the less he can write."
+                ),
             ),
             "truman": Agent(
                 id="truman",
                 name="Truman",
+                name_zh="楚门",
                 occupation="Insurance Salesman",
+                occupation_zh="保险推销员",
                 home_location_id="loc_truman_home",
                 current_location_id="loc_truman_home",
                 personality={
@@ -122,6 +143,10 @@ def _cafe_town(start: datetime) -> WorldState:
                     "agreeableness": 0.7,
                 },
                 goal="守住一个不能说出口的秘密:他厌倦了这份工作,真正想做的是离开小镇去看海。",
+                goal_en=(
+                    "Guarding a secret he can't speak aloud: he is tired of this job, "
+                    "and what he really wants is to leave town and go see the sea."
+                ),
             ),
         },
     )
@@ -129,17 +154,31 @@ def _cafe_town(start: datetime) -> WorldState:
 
 # Dramatic openings (DESIGN §3 L3 / M1.2): three one-tap injections the bundle
 # offers right after init, so the first minute of a fresh town has stakes
-# instead of "watching people drink coffee". Each `event` is a director
-# injection spec — it goes through the same apply_inject_event queue as any
-# manual injection (director power unchanged, red line 3 intact).
+# instead of "watching people drink coffee". Each `event`/`event_en` is a
+# director injection spec — it goes through the same apply_inject_event queue
+# as any manual injection (director power unchanged, red line 3 intact); the
+# bundle picks the variant matching the UI language.
 DRAMATIC_OPENINGS: list[dict] = [
     {
         "id": "stranger",
         "title": "一个陌生人来到镇上",
         "hint": "清晨,一个背着相机包的陌生人走进小镇,逢人便打听这座镇的来历。",
+        "title_en": "A stranger comes to town",
+        "hint_en": (
+            "At dawn, a stranger with a camera bag walks into town, "
+            "asking everyone about its history."
+        ),
         "event": {
             "action": "world_change",
             "reason": "一个背着相机包的陌生人来到小镇,逢人便打听这座镇的来历,居民们窃窃私语。",
+            "importance": 0.95,
+        },
+        "event_en": {
+            "action": "world_change",
+            "reason": (
+                "A stranger with a camera bag arrives in town, asking everyone about "
+                "the town's origins; the residents whisper."
+            ),
             "importance": 0.95,
         },
     },
@@ -147,9 +186,23 @@ DRAMATIC_OPENINGS: list[dict] = [
         "id": "lost_grinder",
         "title": "咖啡馆丢了件重要的东西",
         "hint": "店里祖传的旧磨豆机不翼而飞,所有人的早晨都被打乱了。",
+        "title_en": "The cafe loses something precious",
+        "hint_en": (
+            "The heirloom coffee grinder vanishes overnight, "
+            "and everyone's morning is turned upside down."
+        ),
         "event": {
             "action": "world_change",
             "reason": "咖啡馆里祖传的旧磨豆机不翼而飞,晨间的秩序被打破,每个人都被卷入寻找与猜疑。",
+            "importance": 0.95,
+        },
+        "event_en": {
+            "action": "world_change",
+            "reason": (
+                "The cafe's heirloom coffee grinder vanishes without a trace; the "
+                "morning order breaks down, and everyone is drawn into the search "
+                "and the suspicion."
+            ),
             "importance": 0.95,
         },
     },
@@ -157,9 +210,19 @@ DRAMATIC_OPENINGS: list[dict] = [
         "id": "letter",
         "title": "Truman 收到一封信",
         "hint": '一封只有一行字的信被塞进门缝:"别相信任何人。"',
+        "title_en": "Truman gets a letter",
+        "hint_en": 'A letter with a single line is slipped under the door: "Trust no one."',
         "event": {
             "action": "world_change",
             "reason": 'Truman 的门缝里被塞进一封没有署名的信,上面只有一行字:"别相信任何人。"',
+            "importance": 0.95,
+        },
+        "event_en": {
+            "action": "world_change",
+            "reason": (
+                'An unsigned letter is slipped under Truman\'s door carrying a '
+                'single line: "Trust no one."'
+            ),
             "importance": 0.95,
         },
     },
@@ -181,7 +244,9 @@ SCENARIO_INFO: list[dict] = [
     {
         "id": "cafe_town",
         "name": "Cafe Town",
+        "name_zh": "咖啡镇",
         "description": "Three residents, one cafe as the social hub of their lives.",
+        "description_zh": "三个居民,一家咖啡馆串起他们的生活。",
     },
 ]
 

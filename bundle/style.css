@@ -140,6 +140,13 @@ button.ghost:hover:not(:disabled) { border-color: var(--amber); color: var(--amb
 button.primary { background: var(--amber); border-color: var(--amber); color: #14100a; font-weight: 600; }
 button.primary:hover:not(:disabled) { background: var(--amber-hi); }
 button.icon { font-size: var(--t-title); padding: var(--s1) var(--s3); }
+/* 语言切换:等宽小字,与时间码气质一致 */
+button.lang-btn {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  padding: var(--s1) var(--s2);
+}
 
 /* ═══ 主区:舞台 + 侧栏 ═══════════════════════════════════════════ */
 

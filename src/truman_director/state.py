@@ -68,6 +68,9 @@ class Location:
     y: int
     capacity: int = 10
     description: str = ""
+    # UI localization (zh/en toggle): canonical `name` is English; scenario
+    # presets also fill `name_zh`. Empty string → bundle falls back to `name`.
+    name_zh: str = ""
     occupants: set[str] = field(default_factory=set)
 
 
@@ -93,6 +96,12 @@ class Agent:
     # reflection (M2) will evolve it. Surfaced to decide() via world_view and
     # to the director via get_agent.
     goal: str = ""
+    # Localization (zh/en toggle): canonical names are English; presets also
+    # carry the zh variants. `goal` is authored in Chinese (scenario seeds),
+    # `goal_en` is its English mirror — engine picks by world.lang.
+    name_zh: str = ""
+    occupation_zh: str = ""
+    goal_en: str = ""
     # What the agent is doing right now: idle / work / rest. Set by apply_event
     # on work|rest decisions; move|talk|world_change reset it to idle (a new
     # action ends the previous activity). Before this existed, work|rest events
@@ -130,6 +139,7 @@ def location_from_dict(ld: dict) -> Location:
         y=ld["y"],
         capacity=ld.get("capacity", 10),
         description=ld.get("description", ""),
+        name_zh=ld.get("name_zh", ""),
         occupants=set(ld.get("occupants", [])),
     )
 
@@ -144,6 +154,9 @@ def agent_from_dict(ad: dict) -> Agent:
         current_location_id=ad["current_location_id"],
         personality=ad.get("personality", {}),
         goal=ad.get("goal", ""),
+        name_zh=ad.get("name_zh", ""),
+        occupation_zh=ad.get("occupation_zh", ""),
+        goal_en=ad.get("goal_en", ""),
         current_activity=ad.get("current_activity", "idle"),
         relationships={
             rid: Relationship(
@@ -202,6 +215,10 @@ class WorldState:
     current_tick: int = 0
     world_time: str = "08:00"  # HH:MM
     tick_minutes: int = 5  # 1 tick = 5 simulated minutes
+    # Output language for LLM prose (decide reasons / day stories): "zh"|"en".
+    # Set at init/reset, switchable via tick; persisted in the snapshot so a
+    # restart keeps the town's language.
+    lang: str = "zh"
     # Day tracking (DESIGN §5.1 / M1.5): day 1 is the opening day; a midnight
     # crossing rolls it over and marks a checkpoint for the day-close routine.
     day: int = 1
@@ -235,12 +252,14 @@ class WorldState:
             "current_tick": self.current_tick,
             "world_time": self.world_time,
             "tick_minutes": self.tick_minutes,
+            "lang": self.lang,
             "day": self.day,
             "day_start_tick": self.day_start_tick,
             "locations": {
                 lid: {
                     "id": loc.id,
                     "name": loc.name,
+                    "name_zh": loc.name_zh,
                     "type": loc.type.value,
                     "x": loc.x,
                     "y": loc.y,
@@ -254,11 +273,14 @@ class WorldState:
                 aid: {
                     "id": a.id,
                     "name": a.name,
+                    "name_zh": a.name_zh,
                     "occupation": a.occupation,
+                    "occupation_zh": a.occupation_zh,
                     "home_location_id": a.home_location_id,
                     "current_location_id": a.current_location_id,
                     "personality": a.personality,
                     "goal": a.goal,
+                    "goal_en": a.goal_en,
                     "current_activity": a.current_activity,
                     "relationships": {
                         rid: {
@@ -298,6 +320,9 @@ class WorldState:
             current_tick=data.get("current_tick", 0),
             world_time=data.get("world_time", "08:00"),
             tick_minutes=data.get("tick_minutes", 5),
+            # 0.3.x snapshots predate lang — default zh matches the era's
+            # hardcoded "reasons in Chinese" prompt.
+            lang=data.get("lang", "zh"),
             # 0.3.x snapshots predate day tracking — default day 1, tick 0. The
             # first midnight crossing after upgrade lands them on the new path.
             day=data.get("day", 1),

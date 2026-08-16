@@ -74,6 +74,7 @@ MANIFEST: dict[str, Any] = {
                 {"name": "action", "type": "string", "required": True},
                 {"name": "scenario", "type": "string", "required": False},
                 {"name": "spec", "type": "object", "required": False},
+                {"name": "lang", "type": "string", "required": False},
                 {"name": "n", "type": "integer", "required": False},
                 {"name": "event", "type": "object", "required": False},
                 {"name": "agent_id", "type": "string", "required": False},
@@ -129,10 +130,16 @@ def _build_world(kwargs: dict[str, Any]) -> WorldState:
     spec = kwargs.get("spec")
     scenario = kwargs.get("scenario")
     if spec:
-        return build_from_spec(spec, datetime.now(UTC))
-    if scenario:
-        return build(scenario, datetime.now(UTC))
-    raise InvalidWorldSpecError("init/reset requires 'scenario' (preset) or 'spec' (custom)")
+        world = build_from_spec(spec, datetime.now(UTC))
+    elif scenario:
+        world = build(scenario, datetime.now(UTC))
+    else:
+        raise InvalidWorldSpecError("init/reset requires 'scenario' (preset) or 'spec' (custom)")
+    lang = kwargs.get("lang", "zh")
+    if lang not in ("zh", "en"):
+        raise InvalidWorldSpecError(f"lang must be 'zh' or 'en', got {lang!r}")
+    world.lang = lang
+    return world
 
 
 def _agent_detail(world: WorldState, agent_id: str) -> dict:
@@ -149,6 +156,7 @@ def _agent_detail(world: WorldState, agent_id: str) -> dict:
         {
             "agent_id": rid,
             "name": world.agents[rid].name if rid in world.agents else rid,
+            "name_zh": world.agents[rid].name_zh if rid in world.agents else "",
             "familiarity": rel.familiarity,
             "trust": rel.trust,
             "affinity": rel.affinity,
@@ -165,13 +173,20 @@ def _agent_detail(world: WorldState, agent_id: str) -> dict:
         "agent": {
             "id": agent.id,
             "name": agent.name,
+            "name_zh": agent.name_zh,
             "occupation": agent.occupation,
+            "occupation_zh": agent.occupation_zh,
             "goal": agent.goal,
+            "goal_en": agent.goal_en,
             "personality": agent.personality,
             "current_activity": agent.current_activity,
         },
-        "location": {"id": loc.id, "name": loc.name} if loc else None,
-        "home": {"id": home.id, "name": home.name} if home else None,
+        "location": (
+            {"id": loc.id, "name": loc.name, "name_zh": loc.name_zh} if loc else None
+        ),
+        "home": (
+            {"id": home.id, "name": home.name, "name_zh": home.name_zh} if home else None
+        ),
         "relationships": relationships,
         "recent_events": involved[-10:],
     }
@@ -225,6 +240,15 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
 
     if action == "tick":
         n = kwargs.get("n", 1)
+        # Optional mid-run language switch: applies to this tick's decide and
+        # every later narrate, and persists in the snapshot.
+        lang = kwargs.get("lang")
+        if lang is not None:
+            if lang not in ("zh", "en"):
+                raise InvalidWorldSpecError(f"lang must be 'zh' or 'en', got {lang!r}")
+            if lang != world.lang:
+                _log.info("lang switch %s → %s at tick %s", world.lang, lang, world.current_tick)
+                world.lang = lang
         return {"results": await tick(world, _sampling, _storage, n)}
 
     if action == "inject_event":

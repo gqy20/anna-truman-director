@@ -88,6 +88,48 @@ def _load_prompts() -> dict:
 _PROMPTS = _load_prompts()
 SYSTEM_PROMPT: str = _PROMPTS["sampling"]["system_prompt"]
 NARRATOR_PROMPT: str = _PROMPTS["sampling"]["narrator_prompt"]
+NARRATOR_TAIL: str = _PROMPTS["sampling"]["narrator_tail"]
+# Output-language rules, selected by world.lang and appended to the base
+# prompts — the ONLY place language is decided (red line 1: prompting, not rules).
+LANG_RULES: dict[str, str] = _PROMPTS["sampling"]["lang_rules"]
+NARRATOR_LANG: dict[str, str] = _PROMPTS["sampling"]["narrator_lang"]
+
+
+def _lang_rule(lang: str) -> str:
+    return LANG_RULES.get(lang) or LANG_RULES["zh"]
+
+
+def _narrator_lang_block(lang: str) -> str:
+    return NARRATOR_LANG.get(lang) or NARRATOR_LANG["zh"]
+
+
+def localized_view(world: WorldState) -> dict:
+    """Snapshot with names/occupations/goals picked for world.lang.
+
+    The model sees ONE name and ONE goal per agent — the language it is asked
+    to write in — never both variants (a mixed-language view leaks the other
+    language into reasons and stories). Storage keeps the full bilingual
+    snapshot; this projection is only for the decide prompt.
+    """
+    view = world.snapshot()
+    zh = world.lang == "zh"
+    for loc in view["locations"].values():
+        if zh and loc.get("name_zh"):
+            loc["name"] = loc["name_zh"]
+        loc.pop("name_zh", None)
+    for a in view["agents"].values():
+        if zh:
+            if a.get("name_zh"):
+                a["name"] = a["name_zh"]
+            if a.get("occupation_zh"):
+                a["occupation"] = a["occupation_zh"]
+        else:
+            if a.get("goal_en"):
+                a["goal"] = a["goal_en"]
+        a.pop("name_zh", None)
+        a.pop("occupation_zh", None)
+        a.pop("goal_en", None)
+    return view
 
 MAX_TOKENS = 1024
 NARRATE_MAX_TOKENS = 512  # a day story is 150-300 Chinese chars — 512 is ample
@@ -107,7 +149,7 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     """Ask the model what every agent should do this tick. Returns the raw events list."""
     payload = json.dumps(world_view, ensure_ascii=False)
     result = await sampling.create_message(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=f"{SYSTEM_PROMPT}\n\n{_lang_rule(world_view.get('lang', 'zh'))}",
         messages=[
             {
                 "role": "user",
@@ -172,13 +214,21 @@ async def narrate(
     day_events = [event_to_dict(e) for e in world.events if tick_from <= e.tick <= tick_to][
         -NARRATE_EVENT_WINDOW:
     ]
-    cast = [
-        {"id": a.id, "name": a.name, "occupation": a.occupation, "goal": a.goal}
-        for a in world.agents.values()
-    ]
+    zh = world.lang == "zh"
+    cast = []
+    for a in world.agents.values():
+        cast.append(
+            {
+                "id": a.id,
+                "name": (a.name_zh or a.name) if zh else a.name,
+                "occupation": (a.occupation_zh or a.occupation) if zh else a.occupation,
+                "goal": a.goal if zh else (a.goal_en or a.goal),
+            }
+        )
     payload = json.dumps({"day": day, "cast": cast, "events": day_events}, ensure_ascii=False)
+    system = f"{NARRATOR_PROMPT}\n{_narrator_lang_block(world.lang)}\n\n{NARRATOR_TAIL}"
     result = await sampling.create_message(
-        system_prompt=NARRATOR_PROMPT,
+        system_prompt=system,
         messages=[{"role": "user", "content": {"type": "text", "text": payload}}],
         max_tokens=NARRATE_MAX_TOKENS,
         response_format={
@@ -268,7 +318,7 @@ async def tick(
                 "tick=%s drained %d director injection(s)", world.current_tick, len(injections)
             )
 
-        world_view = world.snapshot()
+        world_view = localized_view(world)
         events = await decide(sampling, world_view)
         for evt in events:
             world.apply_event(evt)

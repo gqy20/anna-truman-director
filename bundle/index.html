@@ -8,8 +8,9 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">楚门镇</div>
+    <div class="brand" id="brand">楚门镇</div>
     <div class="timecode" id="timecode">--:--<span class="tc-caret"></span></div>
+    <button id="btn-lang" class="ghost icon lang-btn" title="中文 / English">EN</button>
     <button id="btn-tick" class="ghost icon" disabled title="推进 1 tick">▶</button>
     <button id="btn-tick5" class="ghost icon" disabled title="推进 5 ticks">⏩</button>
   </header>
@@ -18,9 +19,9 @@
     <section class="stage" id="map" aria-label="小镇舞台"></section>
 
     <aside class="panel">
-      <div class="panel-h story-h">今日故事</div>
+      <div class="panel-h story-h" id="ph-stories">今日故事</div>
       <div class="stories" id="stories"></div>
-      <div class="panel-h">字幕</div>
+      <div class="panel-h" id="ph-subs">字幕</div>
       <ol class="subtitles" id="timeline"></ol>
     </aside>
   </main>
@@ -35,7 +36,7 @@
   <!-- 第一幕:戏剧开场(章节卡) -->
   <div class="openings" id="openings" hidden>
     <div class="chapters">
-      <h3 class="chapters-title">第一幕</h3>
+      <h3 class="chapters-title" id="act-title">第一幕</h3>
       <div class="chapters-list" id="openings-list"></div>
       <button class="chapters-skip" id="openings-skip">静场开场</button>
     </div>
@@ -48,9 +49,9 @@
       <h3 id="agent-name">—</h3>
       <p class="agent-meta" id="agent-meta"></p>
       <p class="agent-goal" id="agent-goal"></p>
-      <h4>关系</h4>
+      <h4 id="h-rels">关系</h4>
       <ul class="agent-rels" id="agent-rels"></ul>
-      <h4>近事</h4>
+      <h4 id="h-events">近事</h4>
       <ol class="agent-events" id="agent-events"></ol>
     </div>
   </div>
