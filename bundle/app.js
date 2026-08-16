@@ -408,7 +408,7 @@ function renderStageEmpty() {
     `<div class="stage-empty">` +
     `<span class="empty-k">STANDBY</span>` +
     `<button class="big-start">${t().openTown}</button>` +
-    `<span class="sub">${t().emptySub}</span>` +
+    `<span class="empty-sub">${t().emptySub}</span>` +
     `</div>`;
 }
 

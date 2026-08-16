@@ -268,7 +268,12 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   transition: border-color var(--d1), color var(--d1);
 }
 .stage-empty .big-start:hover { border-color: var(--amber); color: var(--amber-hi); }
-.stage-empty .sub { font-size: var(--t-meta); color: #a8a294; }
+.stage-empty .empty-sub {
+  font-size: var(--t-meta);
+  color: #a8a294;
+  max-width: 34em; /* 舞台过窄时自然折行,不给 grid/单列背锅 */
+  text-align: center;
+}
 
 /* —— 建筑(地点):剪影随视口短边缩放,大窗口里小镇真正铺开 —— */
 .bld {
@@ -409,14 +414,16 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   gap: 2px;
   line-height: 1.3;
 }
-.sub { display: grid; grid-template-columns: 2.6rem 1.05rem 1fr; gap: var(--s1); align-items: baseline; font-size: var(--t-meta); padding: 3px 4px; border-radius: var(--r1); animation: sub-in var(--d2) ease-out; }
+/* 选择器必须限定在 .subtitles 内:裸 .sub 会命中空舞台说明文字
+   (曾把 tagline 变成 grid 逐字竖排——真机踩过的坑)。 */
+.subtitles .sub { display: grid; grid-template-columns: 2.6rem 1.05rem 1fr; gap: var(--s1); align-items: baseline; font-size: var(--t-meta); padding: 3px 4px; border-radius: var(--r1); animation: sub-in var(--d2) ease-out; }
 @keyframes sub-in { from { opacity: 0; transform: translateY(6px); } }
-.sub .t { font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.sub .mark { font-size: 0.7rem; text-align: center; }
-.sub .txt { color: var(--ink); overflow-wrap: anywhere; }
-.sub-hot { color: var(--rose); }
-.sub-hot .txt { color: var(--amber-hi); }
-.sub-hot .t { color: var(--rose); }
+.subtitles .sub .t { font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.subtitles .sub .mark { font-size: 0.7rem; text-align: center; }
+.subtitles .sub .txt { color: var(--ink); overflow-wrap: anywhere; }
+.subtitles .sub-hot { color: var(--rose); }
+.subtitles .sub-hot .txt { color: var(--amber-hi); }
+.subtitles .sub-hot .t { color: var(--rose); }
 
 /* ═══ 底栏:导演指令 ═══════════════════════════════════════════════ */
 
