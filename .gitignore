@@ -35,3 +35,7 @@ bundle/anna-tool-ids.js
 *.swp
 .playwright-mcp/
 .dev-harness.log
+
+# Marketplace screenshots (临时产物,只在 GitHub Release 留公网 URL)
+.shot*.png
+shot1-empty.png
