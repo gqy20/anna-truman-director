@@ -44,7 +44,11 @@
       "tools": ["required:bundled:truman-director"],
       "chat": ["append_artifact"],
       "llm": ["complete"],
-      "window": ["set_title"]
+      "window": ["set_title"],
+      "agent": {
+        "session": { "auto": true },
+        "tools": []
+      }
     },
     "csp_overrides": {
       "img-src": ["'self'", "data:", "blob:"],
