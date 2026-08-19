@@ -381,6 +381,7 @@ stdlib `logging` + stderr handler,级别由 `TRUMAN_LOG_LEVEL` 控制(生产默�
 | [会话录制回放](https://staging.anna.partners/developers/apps/recording-replay.md) | `anna-app dev` 自动把 RPC 信封录成 JSONL 到 `fixtures/`;`fixture verify`(结构+时序)、`summarize`(调用统计/错误分解)、`replay`(对新 manifest 干跑,暴露 ACL/改名破坏) | M1 起提交 golden 录制进仓库,CI 跑 verify/replay 作回归基线(manifest 已声明 `fixtures/*.jsonl`,机制零配置) |
 | `mountBundle`(vitest) | bundle 测试,同款 ACL 门控 + 确定性事件投喂 | M2/M3 按需(bundle 逻辑复杂化后再上) |
 | `anna-app validate` | manifest/结构校验 | 进发布 checklist(M1.7) |
+| `docs/PUBLISH.md` | 实战沉淀的发布流程:tag→Release→cut→submit→release 完整命令、manifest host_api 嵌套对象模板、Marketplace 截图走 GitHub Release 公网 URL、QA 阻塞排障表(2026-08 v0.4.3 真实失败→修复经验) | 后续每次发布按 checklist 走 |
 | [官方 pitfalls 清单](https://staging.anna.partners/developers/tools/executa-pitfalls.md) | 7 条症状级排障:进程长驻、三名一致(tool_id=describe.name=包内 manifest name)、stderr 纪律、`parameters` 非 MCP `input_schema`、返回形状、包内 manifest.json、**PyInstaller 冷启动 vs 5s describe 超时** | 冷启动实测进 M1.7(我们 `--onefile` 二进制直接暴露在此坑下);其余已在架构中规避 |
 
 ### 13.5 分层小结

@@ -124,9 +124,14 @@ docs(readme): document threading model
 
 - [x] work/rest 决策落地为真实状态（`Agent.current_activity`，地图与时间线可见）。
 - [x] 进程重启后从 APS KV 自动恢复世界（`load()` 接通，无需重新 init）。
+- [x] 提审流程跑通并完成 v0.4.3 修复（`docs/PUBLISH.md` 沉淀实战经验）。
 - [ ] 铸造正式的 `tool_id`，并通过 `anna-app dev` 跑通整个 App 的端到端流程。
 - [ ] 在 `cafe_town` 之外补充更多场景。
 - [ ] 更丰富的 bundle 渲染（关系、智能体对话）。
+
+## 发布
+
+详见 [docs/PUBLISH.md](docs/PUBLISH.md) —— 包含完整命令行流程、manifest host_api 嵌套对象的正确形态（这是 v0.4.3 修复的两个 QA 阻塞的根因）、Marketplace 截图走 GitHub Release 公网 URL 的方法、还有发布 checklist。
 
 ## 许可证
 
