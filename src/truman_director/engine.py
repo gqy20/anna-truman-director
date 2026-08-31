@@ -131,8 +131,12 @@ def localized_view(world: WorldState) -> dict:
         a.pop("goal_en", None)
     return view
 
-MAX_TOKENS = 1024
-NARRATE_MAX_TOKENS = 512  # a day story is 150-300 Chinese chars — 512 is ample
+# BYOK reasoning models (MiniMax-M3, glm-5.x) inline a <think> block that can
+# run thousands of tokens before the JSON payload; a tight cap truncates the
+# answer mid-think and no JSON ever lands. 4096 is the platform's per-call cap
+# (mint token: max_tokens_per_call=4096), so ask for the full budget.
+MAX_TOKENS = 4096
+NARRATE_MAX_TOKENS = 3072  # story is 150-300 zh chars; the rest is think room
 # Wall-clock cap per sampling call. Matches the sampling-summarizer reference and
 # bounds how long a single tick can hang if the host stalls (SDK default is 90s).
 SAMPLING_TIMEOUT = 60.0
@@ -145,17 +149,109 @@ SAMPLING_TIMEOUT = 60.0
 MAX_TICKS_PER_INVOKE = 8
 
 
+def _extract_json(text: str) -> tuple[object, str]:
+    """Parse the model's visible output into JSON, tolerating known wrappers.
+
+    Response-format enforcement is not guaranteed on every host path (the BYOK
+    bridge historically dropped ``response_format``), so the text may arrive
+    wrapped: reasoning models prepend ``<think>…</think>``, chatty models add
+    markdown fences or prose around the payload. Extraction order: strip think
+    blocks → strip fences → direct parse → outermost brace span. The path taken
+    is returned for §13.3 forensics. This is output PARSING, not decision
+    making — red line 1 untouched.
+    """
+    if "<think>" in text:
+        text = text.rsplit("</think>", 1)[-1]
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    try:
+        return json.loads(text), "direct"
+    except json.JSONDecodeError:
+        pass
+    # outermost brace/bracket span: first opener to last closer
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start, end = text.find(opener), text.rfind(closer)
+        if start != -1 and end > start:
+            try:
+                return json.loads(text[start : end + 1]), "brace_span"
+            except json.JSONDecodeError:
+                continue
+    return None, "unparseable"
+
+
+async def _sample_json(
+    sampling,
+    *,
+    system: str,
+    user_text: str,
+    max_tokens: int,
+    response_format: dict,
+    validate=None,
+    shape_hint: str = "",
+) -> tuple[object, str, str, str]:
+    """One sampling call with a bounded JSON-shape retry.
+
+    When the host does not enforce ``response_format`` (BYOK bridge), the model
+    sometimes answers in prose or with the wrong object shape despite the
+    prompt's contract. One corrective retry — showing the model its own bad
+    answer — is still the model deciding (red line 1); exhausting the retry is
+    loud (red line 4). ``validate(data)`` rejects shape-mismatches the same way
+    as parse failures. Returns (data, parse_path, full_raw_text, retry_used).
+    """
+    messages = [{"role": "user", "content": {"type": "text", "text": user_text}}]
+    raw_parts: list[str] = []
+    for attempt in range(2):
+        result = await sampling.create_message(
+            system_prompt=system,
+            messages=messages,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            timeout=SAMPLING_TIMEOUT,
+        )
+        content = result["content"]
+        text = content.get("text", "") if isinstance(content, dict) else content
+        raw_parts.append(text)
+        data, path = _extract_json(text)
+        ok = data is not None and (validate is None or validate(data))
+        if ok:
+            return data, path, "\n-----\n".join(raw_parts), str(attempt)
+        reason = "not valid JSON" if data is None else f"JSON but wrong shape — {shape_hint}"
+        _log.warning(
+            "sampling output %s (attempt %d, %d chars) — retrying with correction",
+            reason,
+            attempt + 1,
+            len(text),
+        )
+        messages = [
+            {"role": "user", "content": {"type": "text", "text": user_text}},
+            {"role": "assistant", "content": {"type": "text", "text": text}},
+            {
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": (
+                        f"Your response was {reason}. Re-read the OUTPUT FORMAT "
+                        "requirement and respond again with ONLY the raw JSON object — "
+                        "no markdown fences, no prose, no headings."
+                    ),
+                },
+            },
+        ]
+    return None, "unparseable", "\n-----\n".join(raw_parts), "retry_exhausted"
+
+
 async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     """Ask the model what every agent should do this tick. Returns the raw events list."""
     payload = json.dumps(world_view, ensure_ascii=False)
-    result = await sampling.create_message(
-        system_prompt=f"{SYSTEM_PROMPT}\n\n{_lang_rule(world_view.get('lang', 'zh'))}",
-        messages=[
-            {
-                "role": "user",
-                "content": {"type": "text", "text": payload},
-            }
-        ],
+    system = f"{SYSTEM_PROMPT}\n\n{_lang_rule(world_view.get('lang', 'zh'))}"
+    data, parse_path, text, retries = await _sample_json(
+        sampling,
+        system=system,
+        user_text=payload,
         max_tokens=MAX_TOKENS,
         response_format={
             "type": "json_schema",
@@ -165,35 +261,37 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
                 "schema": DECISION_SCHEMA,
             },
         },
-        timeout=SAMPLING_TIMEOUT,
     )
+    if data is None:
+        raise ValueError(
+            f"decide returned no parseable JSON after retry (resp={len(text)}B): {text[:160]!r}"
+        )
     # Host returns content.text as a string — parse it ourselves. The schema
     # asks for {"events": [...]}, but some hosts unwrap the single-property
     # object and emit the bare array — accept either shape (both faithfully
     # represent "what the agents do this tick"; neither is a degraded result).
-    content = result["content"]
-    text = content.get("text", "") if isinstance(content, dict) else content
-    data = json.loads(text)
     # Decision forensics (DESIGN §13.3): the model's choice is not reproducible,
     # so every call logs its I/O sizes and the parse path taken. The bare-array
     # shape is the known host quirk — WARNING makes its frequency observable.
     if isinstance(data, dict):
         events = data.get("events", [])
         _log.info(
-            "decide tick=%s prompt=%dB resp=%dB shape=dict events=%d",
+            "decide tick=%s prompt=%dB resp=%dB shape=dict events=%d parse=%s",
             world_view.get("current_tick"),
             len(payload.encode("utf-8")),
             len(text.encode("utf-8")) if isinstance(text, str) else -1,
             len(events),
+            parse_path,
         )
         return events
     if isinstance(data, list):
         _log.warning(
-            "decide tick=%s prompt=%dB resp=%dB shape=bare_array (host unwrapped schema) events=%d",
+            "decide tick=%s prompt=%dB resp=%dB shape=bare_array (host unwrapped schema) events=%d parse=%s",
             world_view.get("current_tick"),
             len(payload.encode("utf-8")),
             len(text.encode("utf-8")) if isinstance(text, str) else -1,
             len(data),
+            parse_path,
         )
         return data
     return []
@@ -227,9 +325,10 @@ async def narrate(
         )
     payload = json.dumps({"day": day, "cast": cast, "events": day_events}, ensure_ascii=False)
     system = f"{NARRATOR_PROMPT}\n{_narrator_lang_block(world.lang)}\n\n{NARRATOR_TAIL}"
-    result = await sampling.create_message(
-        system_prompt=system,
-        messages=[{"role": "user", "content": {"type": "text", "text": payload}}],
+    data, parse_path, text, retries = await _sample_json(
+        sampling,
+        system=system,
+        user_text=payload,
         max_tokens=NARRATE_MAX_TOKENS,
         response_format={
             "type": "json_schema",
@@ -239,22 +338,21 @@ async def narrate(
                 "schema": NARRATIVE_SCHEMA,
             },
         },
-        timeout=SAMPLING_TIMEOUT,
+        validate=lambda d: isinstance(d, dict) and "story" in d,
+        shape_hint='the object must be {"story": "...", "cliffhanger": "..."}',
     )
-    content = result["content"]
-    text = content.get("text", "") if isinstance(content, dict) else content
-    data = json.loads(text)
     if not isinstance(data, dict) or "story" not in data:
         raise ValueError(
             f"narrate returned {type(data).__name__}, expected {{story, cliffhanger}} — "
-            "host may not support two-property json_schema; refusing to guess (red line 4)"
+            f"retries={retries} resp={len(text)}B: {text[:120]!r} (red line 4)"
         )
     _log.info(
-        "narrate day=%s events=%dB story=%dchars cliffhanger=%dchars",
+        "narrate day=%s events=%dB story=%dchars cliffhanger=%dchars parse=%s",
         day,
         len(payload.encode("utf-8")),
         len(data.get("story", "")),
         len(data.get("cliffhanger", "")),
+        parse_path,
     )
     return {"story": data["story"], "cliffhanger": data.get("cliffhanger", "")}
 

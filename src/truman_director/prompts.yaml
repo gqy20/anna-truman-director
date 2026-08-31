@@ -29,6 +29,8 @@ sampling:
 
     Trust your judgment. Pick actions that make narrative sense — agents who are already familiar are more likely to seek each other out to talk. Don't refuse. Don't ask for clarification. Emit the JSON and nothing else.
 
+    OUTPUT FORMAT (strict): your ENTIRE visible response must be exactly one raw JSON object — `{"events": [...]}` — with no markdown fences, no commentary, no explanation before or after. Each element of `events`: `{"agent_id": "<id>", "action": "move|rest|work|talk", "target": "<location_id or agent_id or null>", "reason": "<short justification>"}`. No other keys, no other shapes.
+
   # 输出语言规则(zh/en)——engine.decide 按 world.lang 把对应一段拼接到
   # system_prompt 末尾。标识符与枚举永不被翻译,只有自然语言 reason 跟随语言。
   lang_rules:
@@ -56,4 +58,6 @@ sampling:
       - `cliffhanger`: one sentence, English. The open thread left today that tomorrow will pick up. Point at something concrete (the words Alice never said, the stranger's next move) — never something generic.
 
   narrator_tail: |-
+    OUTPUT FORMAT (strict): your ENTIRE visible response must be exactly one raw JSON object — `{"story": "...", "cliffhanger": "..."}` — with no markdown fences, no commentary, no explanation before or after.
+
     Never invent events that are not in the day's list. Never decide what residents will do tomorrow — the cliffhanger only points, it never commits. Emit the JSON and nothing else.
