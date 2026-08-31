@@ -39,3 +39,7 @@ bundle/anna-tool-ids.js
 # Marketplace screenshots (临时产物,只在 GitHub Release 留公网 URL)
 .shot*.png
 shot1-empty.png
+
+# 对外邮件草稿统一放 ../mail/，不要提交进仓库
+docs/*-email.md
+docs/email-*.md
