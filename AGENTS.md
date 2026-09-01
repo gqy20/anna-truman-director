@@ -103,7 +103,7 @@ bundle/app.js → anna.storage.get（渲染读取 plugin 写的同一 KV key）
 
 ## 发布（概要）
 
-完整流程/状态机/checklist 见 `docs/PUBLISH.md`。要点：`apps push` 对 bundled executa 是 no-freeze，cut 前必须 `executa publish`；`pending_review` 不允许覆盖提审（等审核员走完一轮）；Marketplace 截图走 GitHub Release 资产 URL；表单字段名是 `homepage_url`。
+完整流程/状态机/checklist 见 `docs/PUBLISH.md`。发布顺序是：目标版本和四平台 `binary_urls` 先写入 git → tag 触发四平台构建 → Release 资产完整性门禁 → `apps push` → `executa publish` 冻结 ExecutaVersion → **真实 Windows Agent 安装 + App 开镇/tick** → `apps cut`。只看到 GitHub 资产或当前 Executa 记录不算通过，必须验证冻结快照。Marketplace 截图从 v0.4.5 起追加到同一个版本 Release；任何仍被 `app.json`/平台元数据引用的旧截图 Release 不得删除。`pending_review` 下不要重复 submit，cut 后必须回读审核候选。
 
 ## Git 与提交
 
@@ -118,6 +118,7 @@ uv run pytest -q                         # 全量测试（80+）
 uv run ruff format . && uv run ruff check .
 pnpm exec anna-app validate              # manifest 校验（发布前必过）
 pnpm exec anna-app dev --executa dir=.   # dev harness（:5180）。executa 在仓库根，必须显式 --executa dir=.
+pwsh -File scripts/review_smoke_opencli.ps1  # Windows/OpenCLI 真实 LLM smoke + 5 张审核截图
 env -u MOCK uv run python scripts/local_e2e.py   # 真 LLM 全链路 E2E（需 BYOK 健康 + Agent 在线）
 MOCK=1 uv run python scripts/local_e2e.py        # 离线 mock 回放（协议链路验证）
 # 直连 anna.partners 的探针若 TLS 断连（本机代理环境）：
@@ -135,3 +136,5 @@ bash scripts/package_binary.sh           # 本地 PyInstaller 打包（单平台
 6. call API 把 error code 抹成 `tool_failed`，业务 code 只剩 message 前缀——客户端解析前缀。
 7. dev 存储按 session 隔离；stale session 报 `unknown session_id`。
 8. Matrix Agent 必须在线（dev harness 本地直连会掩盖此问题）。
+9. ExecutaVersion 是不可变快照：后来补 `windows-x86_64` 不会修复已冻结版本；Windows 真机安装失败时必须发新的 patch 版本，禁止继续 App cut/release。
+10. Executa Hub 的 Install 页面在 `defaultAgentClientId` 为空时可能误选 `agents[0]`（实测落到 Cloud）；Network 中的 `/agents/<client_id>/plugins/reinstall` 才是实际目标证据。

@@ -16,7 +16,7 @@
 | App frontend invocation | Fail | 本地已修 | `manifest.json#ui.host_api` 改为嵌套对象；harness 可开镇并正常渲染 | 平台 QA 复跑并截图/录屏 |
 | Related Tool execution | Fail | 本地已修 | `initialize`、`describe`、`world` invoke 均成功；真实 LLM 连续 3 tick 成功 | 平台环境保存 tool trace |
 | Permission configuration | Needs Fix | 本地已修 | `host_api.agent.session.auto: true`；`anna-app validate` 通过 | 平台权限保存成功证据 |
-| Marketplace product page / screenshots | Needs Fix | 新版候选图已生成 | Developer Console 已填 homepage/support/privacy/cover；2026-09-01 以 Anna CLI + OpenCLI 生成 7 张当前 UI 图 | 选定 4～5 张后上传新 Release，并更新 Console URL |
+| Marketplace product page / screenshots | Needs Fix | v0.4.4 元数据已补齐；v0.4.5 待迁移 | Developer Console/app 82 已填 homepage/support/privacy/cover；v0.4.4 screenshots Release 的 4 个 URL 均可用 | v0.4.5 将截图并入版本 Release，sync-meta 回读后保留旧 Release 至新版本审核完成 |
 | Language support | Needs Fix（截图缺失牵连） | 本地已修 | 中文/英文地点、居民、控件和同 tick 时间码切换通过 | 两种语言各留一张当前版本证据 |
 | Security | Needs Confirmation | 本地已验证 | CSP、最小权限、动态文本 `escapeHtml`、无已跟踪密钥；未知 action/agent/target 明确失败；浏览器 XSS smoke 未执行 payload | 平台 QA 复跑 |
 | Product differentiation | Needs Confirmation | 本地已验证 | APS 世界快照、居民自主 LLM 决策、定向注入、关系/位置/活动持久化、插件重启恢复 | 平台 QA 复跑 TC-04 / TC-05 |
@@ -87,3 +87,13 @@
 - 当前审核已指向 v0.4.4 immutable cut；后续 main 改动仍不会自动进入该快照。
 - TC-04 / TC-05 / Security 已本地通过，但尚未由平台 QA 复核。
 - BYOK 官方修复尚未在论坛由本账号回帖确认。
+
+## 7. v0.4.4 真机复核新增阻塞（2026-09-01）
+
+- 官方最新版 Windows Agent `1.1.0-beta.33` 在线，Developer working draft 已安装为 `0.0.0-draft`。
+- App 本体可打开，但 `/api/v1/apps/installed` 回读 `deploy_status=degraded`，required Executa 为 `unavailable`；开镇返回 `executa_not_deployed`，并触发 reconcile。
+- Executa Hub 的 Install 按钮在页面 `defaultAgentClientId=null` 时错误选择 `agents[0]`，Network 证明请求落到 Cloud Agent，而不是 UI 已显示的默认 Local Agent。
+- 明确请求 Local Agent reinstall 后，平台返回 `No binary available for platform 'windows-x86_64'. Available platforms: darwin-arm64, linux-x86_64`。
+- GitHub v0.4.4 Release 和当前 `/executas/my` 记录虽已有四平台，但 immutable ExecutaVersion 427 的安装快照不完整；后补当前记录不会修复旧快照。
+
+因此 v0.4.4 不得 release。修复路径是发布全新 v0.4.5 ExecutaVersion，在 App cut 前完成 Windows Agent 安装、`world init` 与至少 1 tick 真机验证。

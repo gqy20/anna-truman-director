@@ -161,7 +161,7 @@ Acceptance runner 执行：
 
 ## 7. 尚未完成
 
-- 在真实 Matrix Agent + APS backend 上复跑重启恢复。
-- 生成不带 harness/RPC 外框的新版 Marketplace 图片。
+- 发布 v0.4.5 ExecutaVersion，并在真实 Windows Matrix Agent 验证安装、`world init`、1 tick 与 APS backend。
+- 将新版 Marketplace 图片追加到 v0.4.5 版本 Release，sync-meta 回读后再决定旧 screenshots Release 的删除时间。
 - 按 GLM / MiniMax / DeepSeek 原矩阵复测 BYOK，并在论坛 topic 256 回帖。
-- 等平台结束 v0.4.3 `pending_review` 后，以新版本提交上述证据。
+- cut App v0.4.5，并确认现有 `pending_review` 的候选指针已更新到 v0.4.5。

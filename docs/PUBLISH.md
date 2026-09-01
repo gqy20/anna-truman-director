@@ -20,31 +20,32 @@
 引擎任何改动(纯云版/本地 Executa 切换/算法调整)必须走二进制;bundle 改动则不需要。
 
 ```bash
-# 1. 同步版本号(四处必对齐)
+# 1. 同步版本号(四处必对齐),并提前把 binary_urls 改为目标 tag。
+#    Release URL 是确定的；文件尚未生成不影响先写配置。
 uv lock
 sed -i 's/"version": "0\.4\.X"/"version": "0.4.X+1"/' executa.json app.json
 sed -i 's/__version__ = "0\.4\.X"/__version__ = "0.4.X+1"/' src/truman_director/__init__.py
 sed -i 's/^version = "0\.4\.X"/version = "0.4.X+1"/' pyproject.toml
+sed -i 's|releases/download/truman-director-v0\.4\.X/|releases/download/truman-director-v0.4.X+1/|g' executa.json
 
-# 2. 推 tag,触发 Actions 四平台构建
+# 2. 提交并推送上述版本/URL变更,再从同一 commit 打 tag。
+git add app.json executa.json pyproject.toml uv.lock src/truman_director/__init__.py
+git commit -m "chore(release): prepare v0.4.X+1"
+git push
 git tag truman-director-v0.4.X+1
 git push origin truman-director-v0.4.X+1
 
-# 3. 等 Actions 完成(darwin-arm64/x86_64, linux-x86_64, windows-x86_64)
+# 3. 等 Actions 完成。release job 自带四平台完整性/entrypoint 门禁。
 gh run watch <run-id> --exit-status
 
-# 4. 验证 4 tar.gz + 4 sha256 已挂到 Release
+# 4. 再从 GitHub API 验证 4 tar.gz + 4 sha256 已挂到同一个 Release。
 gh release view truman-director-v0.4.X+1 --json assets --jq '.assets[] | .name'
 
-# 5. 更新 executa.json 的 binary_urls(批量替换 v0.4.X tag 为 v0.4.X+1)
-sed -i 's|releases/download/truman-director-v0\.4\.X/|releases/download/truman-director-v0.4.X+1/|g' executa.json
-
-# 6. 提交 binary_urls 更新
-git add executa.json && git commit -m "chore(executa): binary_urls → v0.4.X+1 Release"
-git push
+# 5. 逐个确认 executa.json URL 返回 200,且 Windows entrypoint 带 .exe。
+#    此时仍不要 cut App。
 ```
 
-Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`)——**Marketplace 截图也走这个机制**(见 §3)。
+Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`)。从下一版开始，**Executa binaries、SHA256 和 Marketplace screenshots 共用同一个版本 Release**，但截图只在 binary workflow 完成后追加，见 §3。
 
 ## 2. App bundle + manifest → Anna Platform
 
@@ -89,18 +90,24 @@ Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases
 # 1. 推工作草稿(manifest + bundle)
 pnpm exec anna-app apps push
 
-# 2. ⚠️ 必须单独推 executa 版本(apps push 是 no-freeze,cut 时会报
-#    "Version X.Y.Z already published with different content")
+# 2. 冻结 ExecutaVersion。此刻 executa.json 必须已含四个平台。
 pnpm exec anna-app executa publish
 
-# 3. 冻结 App 版本(锁 executa 依赖)
+# 3. 硬门禁:回读版本,并在真实 Windows Agent 上安装+调用。
+pnpm exec anna-app executa status tool-qingyu_ge-anna-truman-director-sxah66uc
+pnpm exec anna-app executa versions tool-qingyu_ge-anna-truman-director-sxah66uc
+# Executa Hub → My Tools → Truman Director → Install
+# 然后 Developer Console 安装 working draft,完成开镇 + 1 tick。
+# 若 deploy_status!=ready / executa_not_deployed / No binary available,立即停止。
+
+# 4. 只有 Windows 真机门禁通过后,才冻结 App 版本并锁 ExecutaVersion。
 pnpm exec anna-app apps cut 0.4.X+1 --changelog "<简明变更说明>"
 
-# 4. 若是 archived 状态(我们的 case):先 unarchive 再 submit-review
+# 5. 若是 archived 状态:先 unarchive 再 submit-review
 pnpm exec anna-app apps unarchive anna-truman-director-local --yes
 pnpm exec anna-app apps submit-review
 
-# 5. 审核通过后,跑一条上架命令
+# 6. 审核通过后,跑一条上架命令
 pnpm exec anna-app apps release 0.4.X+1
 ```
 
@@ -123,19 +130,37 @@ dry-run 必须先确认 app_id、slug 和全部 URL 正确。Developer Console �
 | cover_url | 一个截图URL | |
 | 截图 URL | 一行一个 | |
 
-### 截图发到公网的最快路径:GitHub Release
+### Marketplace Screenshots Release 的作用与保留规则
+
+GitHub Release 在这里充当**稳定的公网静态文件托管**。Anna Marketplace 保存的是 `cover_url` / `screenshots[]` URL，不会把 PNG 复制进平台；所以只要元数据仍引用某个 Release Asset，那个 Release 就是线上依赖，不能删除。
+
+当前 `Marketplace Screenshots — v0.4.4` (`truman-director-screenshots-v0.4.4`) 仍被 app 82 的线上平台元数据和正在进行的 v0.4.4 审核引用；v0.4.5 工作树虽已准备迁移 URL，但在新资产上传并执行 `sync-meta` 前尚未生效。**现在删除仍会导致线上封面和四张截图全部 404**。
+
+从 v0.4.5 起不再单独创建 screenshots Release。等 binary workflow 完成后，把干净截图追加到同一个版本 Release：
 
 ```bash
-gh release create <screenshots-tag> \
-  shot1.png shot2.png shot3.png shot4.png \
-  --title "App Screenshots — v0.4.X+1" --notes-file notes.md
+gh release upload truman-director-v0.4.X+1 \
+  02-first-act.png 03-town-overview.png 06-english-view.png 07-day-story.png
 
-# 注意:GitHub 对同名资产重复上传会自动加 default. 前缀,
-# URL 仍然有效,但 Marketplace 截图里文件名会带 default.
-# 第一次上传就用正确文件名即可。
+# 更新 app.json 中 cover/screenshots 为这个 tag 的 URL,再同步平台元数据。
+pnpm exec anna-app apps sync-meta --dry-run --json
+pnpm exec anna-app apps sync-meta --json
 ```
 
-URL 形态:`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`
+URL 形态仍是:`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`。
+
+旧 screenshots Release 的删除条件（缺一不可）：
+
+1. 新截图已上传到新的版本 Release，四个 URL 均返回 200；
+2. `app.json` 已改为新 URL并提交；
+3. `apps sync-meta --json` 成功，Developer Console/平台 API 回读不再出现旧 tag；
+4. 新审核候选已指向新版本，最好等新版本批准/上架后再删旧 Release。
+
+满足后才可执行：
+
+```bash
+gh release delete truman-director-screenshots-v0.4.4 --cleanup-tag --yes
+```
 
 ### Developer Console 回退
 
@@ -165,6 +190,8 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 | `apps submit-review` 报 `App 状态不允许提交审核: pending_review` | 上一轮审核未结束 | 不要重复 submit。2026-09-01 实测：在 pending_review 下成功 cut 新版本后，服务器自动把现有审核指针更新到新 cut；必须用 `apps status` 回读确认 |
 | Developer Console 报 `Save failed: manifest does not declare agent.session.auto` | manifest host_api 写法错误(数组而非嵌套对象),缺 agent.session.auto: true | 见 §2 |
 | `desc:` 时 dev harness 跑一会挂 / `Object has no member 'ref'` | bundle SDK 在 harness 进程里调 agent.session.refresh 被拒 | 修了上面之后正常 |
+| Windows Agent 安装报 `No binary available for platform 'windows-x86_64'` | immutable ExecutaVersion 冻结时没有 Windows map；当前 Executa 记录后来补齐也不会修旧快照 | 禁止 App cut/release；补齐四平台后发布新的 Executa patch 版本，Windows 真机安装通过再 cut App |
+| Executa Hub Install 明明默认 Local 却请求 Cloud Agent | 页面 `window.defaultAgentClientId` 为空时错误回退 `agents[0]` | 从 Network 核对 `/agents/<client_id>/plugins/reinstall` 的目标；平台修复前不要把按钮提示当成部署成功证据 |
 | BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 官方论坛 2026-08-27 确认修复于 `v1.1.0-beta.144`；升级后重跑原矩阵并在 topic 256 回帖确认 |
 
 ## 5. 检查清单(checklist)
@@ -180,6 +207,8 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - [ ] 版本号四处对齐(executa.json / app.json / pyproject.toml / __init__.py)
 - [ ] `executa.json#binary_urls` 指向最新 tag
 - [ ] GitHub Release 4 tar.gz + 4 sha256 齐全
+- [ ] 冻结后的 ExecutaVersion 已在真实 Windows Agent 安装成功（不能只检查当前 Executa 记录）
+- [ ] Developer working draft 的 `deploy_status=ready`，开镇 + 1 tick 不报 `executa_not_deployed`
 - [ ] Developer Console「基本信息」表单已填 homepage/support/privacy/cover/screenshot URL
 - [ ] `docs/PRIVACY.md` 在仓库里
 - [ ] 按 `docs/REVIEW-FEEDBACK.md` 跑完 TC-01～TC-05，并保存工具输入、工具输出和前端结果证据
@@ -205,4 +234,6 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - 2026-09-01 本地验证：90 tests、Ruff、manifest、Windows UTF-8 mock E2E 全绿；harness 完成真实 LLM 开镇、事件注入、定向居民事件、XSS inert-markup、3 tick 与中英切换
 - TC-01～TC-05 + Security 本地证据已补齐
 - `apps push` 已更新 working draft rev 6；`executa publish` 与 `apps cut 0.4.4` 均成功
-- 下一步：等待审核团队处理 v0.4.4；不要重复 `submit-review`，不要在批准前 `release`
+- 2026-09-01 真机复核发现 v0.4.4 immutable ExecutaVersion 在 Windows 安装时报 `No binary available for platform 'windows-x86_64'`，尽管当前 Executa 记录和 GitHub Release 已有四平台；working draft 因此 `deploy_status=degraded` / `executa_not_deployed`
+- Executa Hub Install 还存在默认 Local 却请求 Cloud Agent 的前端选路 bug；Network 证据显示请求落到 Cloud client_id
+- 下一步：发布 v0.4.5 Executa（四平台先写入并冻结）→ Windows 真机安装/调用 → 再 cut App v0.4.5。v0.4.4 不得 release

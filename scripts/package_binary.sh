@@ -9,12 +9,14 @@
 #   └── manifest.json         # runtime.binary.entrypoint.default + permissions
 #
 # The Agent reads manifest.json to locate the entrypoint (no guessing). The
-# multi-platform binary_urls themselves live on the Anna platform Tool config
-# page — NOT in executa.json (forum topic 140).
+# same entrypoint and archive URL must also be declared under the active binary
+# profile in executa.json BEFORE `anna-app executa publish`; publishing freezes
+# that four-platform map into an immutable ExecutaVersion.
 #
 # PyInstaller cannot cross-compile → builds only for the current host; the
-# GitHub Actions matrix runs this per runner (topic 140: macos-14 → darwin-arm64,
-# macos-15-intel → darwin-x86_64, ubuntu-latest → linux-x86_64).
+# GitHub Actions matrix runs this per runner (macos-14 → darwin-arm64,
+# macos-15-intel → darwin-x86_64, ubuntu-latest → linux-x86_64,
+# windows-latest → windows-x86_64).
 #
 # Windows note: CI runs under git-bsh. `python3` is usually absent (only
 # `python`), `shasum`/`sha256sum` may be missing, AND PyInstaller appends `.exe`
@@ -178,5 +180,5 @@ echo "Built: $ARCHIVE ($SIZE bytes)"
 echo "SHA-256: $SHA256"
 echo "Layout:"; tar tzf "$ARCHIVE"
 echo
-echo "entrypoint = bin/$TOOL_ID$EXE_EXT  (declared in archive manifest.json; set the"
-echo "  same on the platform Tool config page binary_urls.entrypoint — NOT in executa.json)"
+echo "entrypoint = bin/$TOOL_ID$EXE_EXT  (declared in archive manifest.json; keep the"
+echo "  same value in executa.json distribution.profiles.binary.binary_urls before publish)"
