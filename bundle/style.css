@@ -178,6 +178,10 @@ button.lang-btn {
   .panel { border-left: none; border-top: 1px solid var(--line); max-height: 38vh; }
   .subtitles { min-height: 4rem; }
 }
+/* 看戏模式:面板滑出,舞台独占全宽(故事与字幕仍在,切回即见) */
+body.cinema .stage-wrap { grid-template-columns: 1fr; }
+body.cinema .panel { display: none; }
+body.cinema #btn-cinema { border-color: var(--amber); color: var(--amber-hi); }
 
 /* —— 舞台:夜幕地平线 + 暗角 —— */
 .stage {
@@ -446,6 +450,47 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* —— 居民 hover 实时状态浮卡(比 tooltip 多一层"正在发生的戏") —— */
+.live-card {
+  position: fixed;
+  z-index: var(--z-tip);
+  max-width: 16rem;
+  padding: var(--s2) var(--s3);
+  background: rgba(13, 19, 28, 0.96);
+  border: 1px solid var(--line2);
+  border-radius: var(--r2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: card-in var(--d1) ease-out;
+}
+@keyframes card-in { from { opacity: 0; transform: translateY(4px); } }
+.live-card .lc-name {
+  font-family: var(--serif);
+  font-size: var(--t-body);
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.live-card .lc-occ {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  margin-left: var(--s2);
+}
+.live-card .lc-row {
+  font-size: var(--t-micro);
+  color: var(--amber-hi);
+  margin-bottom: var(--s1);
+}
+.live-card .lc-what {
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ═══ 侧栏:故事(主) + 字幕流(次) ═════════════════════════════════ */

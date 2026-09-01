@@ -134,6 +134,10 @@ async function boot() {
   $("btn-tick").addEventListener("click", () => onTick(1));
   $("btn-tick5").addEventListener("click", () => onTick(5));
   $("btn-lang").addEventListener("click", () => toggleLang());
+  $("btn-cinema").addEventListener("click", () => {
+    const on = document.body.classList.toggle("cinema");
+    $("btn-cinema").title = on ? (LANG === "zh" ? "退出看戏模式" : "Exit cinema mode") : (LANG === "zh" ? "看戏模式" : "Cinema mode");
+  });
   $("btn-inject").addEventListener("click", onInject);
   $("inject-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -147,6 +151,14 @@ async function boot() {
     const dot = e.target.closest(".dot");
     if (dot?.dataset.agentId) return showAgent(dot.dataset.agentId);
     if (e.target.closest(".big-start")) return onStart();
+  });
+  // 居民 hover → 实时状态浮卡(委托;数据来自最近一次 refresh 的快照)
+  $("map").addEventListener("mouseover", (e) => {
+    const dot = e.target.closest(".dot");
+    if (dot?.dataset.agentId) showLiveCard(dot, dot.dataset.agentId);
+  });
+  $("map").addEventListener("mouseout", (e) => {
+    if (e.target.closest(".dot")) hideLiveCard();
   });
   $("agent-close").addEventListener("click", () => ($("agent-modal").hidden = true));
   $("agent-modal").addEventListener("click", (e) => {
@@ -385,6 +397,7 @@ window.__truman = { invokeWorld, refresh, onStart, showOpenings, toggleLang, get
 
 let lastStoryDay = null; // cliffhanger 定格检测
 let lastMaxTick = -1; // 字幕"新条目"动画判定
+let lastWorld = null; // hover 浮卡的数据源(refresh 时更新)
 
 async function refresh() {
   if (!anna) return false;
@@ -399,6 +412,7 @@ async function refresh() {
   renderStage(world);
   renderStories(world);
   renderSubtitles(world);
+  lastWorld = world;
   lastMaxTick = world.events?.length ? world.events[world.events.length - 1].tick : -1;
   return true;
 }
@@ -486,11 +500,9 @@ function renderStage(world) {
       .map((id) => {
         const a = world.agents[id];
         const cls = talking.has(id) ? "talk" : a?.current_activity || "idle";
-        const act = ACT[a?.current_activity];
-        const tip = escapeHtml(agentName(a || { name: id }) + (act ? ` · ${act}` : ""));
-        // 随机相位:每个点的呼吸错开,避免全员同步闪烁
+        // 随机相位:每个点的呼吸错开;hover 详情由 live-card 浮卡接管
         const phase = (Array.from(id).reduce((s, c) => s + c.charCodeAt(0), 0) % 45) / 10;
-        return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" data-tip="${tip}" style="animation-delay:-${phase.toFixed(1)}s"></button>`;
+        return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" aria-label="${escapeHtml(agentName(a || { name: id }))}" style="animation-delay:-${phase.toFixed(1)}s"></button>`;
       })
       .join("");
     // 建筑灯火:2-3 扇小窗,位置/闪烁周期按楼名哈希——重渲染稳定不跳变
@@ -645,6 +657,43 @@ function renderSubtitles(world) {
 }
 
 // ─── 居民档案(M1.4) ─────────────────────────────────────────────────
+
+// hover 实时状态浮卡:一张就够,随渲染刷新数据(hover 中也保持最新)
+let liveCardEl = null;
+
+function hideLiveCard() {
+  liveCardEl?.remove();
+  liveCardEl = null;
+}
+
+function showLiveCard(dot, agentId) {
+  const w = lastWorld;
+  const a = w?.agents?.[agentId];
+  if (!w || !a) return;
+  hideLiveCard();
+  const loc = w.locations?.[a.current_location_id];
+  const ACT = LANG === "zh" ? ACT_ZH : ACT_EN;
+  const act = ACT[a.current_activity] ?? (LANG === "zh" ? "闲着" : "idle");
+  // 最近一条与 TA 相关的事件,给浮卡一点"正在发生的戏"
+  const recent = (w.events || []).filter((e) => e.actor_agent_id === agentId || e.target_agent_id === agentId).at(-1);
+  const what = recent?.description || recent?.reason || "";
+  liveCardEl = document.createElement("div");
+  liveCardEl.className = "live-card";
+  liveCardEl.innerHTML =
+    `<div class="lc-name">${escapeHtml(agentName(a))}<span class="lc-occ">${escapeHtml(agentOcc(a))}</span></div>` +
+    `<div class="lc-row">${act} · ${escapeHtml(locName(loc || { name: "?" }))}</div>` +
+    (what ? `<div class="lc-what">${escapeHtml(what)}</div>` : "");
+  document.body.appendChild(liveCardEl);
+  // 定位:点上方居中,越界自动收回视口内
+  const r = dot.getBoundingClientRect();
+  const c = liveCardEl.getBoundingClientRect();
+  let x = r.left + r.width / 2 - c.width / 2;
+  let y = r.top - c.height - 10;
+  x = Math.max(8, Math.min(x, innerWidth - c.width - 8));
+  if (y < 8) y = r.bottom + 10;
+  liveCardEl.style.left = `${Math.round(x)}px`;
+  liveCardEl.style.top = `${Math.round(y)}px`;
+}
 
 async function showAgent(agentId) {
   const modal = $("agent-modal");
