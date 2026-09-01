@@ -10,7 +10,7 @@
 | 格式 / lint | `uv run ruff format --check . && uv run ruff check .` | 全部通过 |
 | 单元测试 | `uv run pytest -q` | 全绿 |
 | 协议 E2E | `MOCK=1 uv run python scripts/local_e2e.py` | init → tick → 跨午夜 narrate → get_story 全链路通过 |
-| harness smoke | `pnpm exec anna-app dev --executa dir=.` 起 harness,在 iframe 里完成开镇 / 注入 / 3 tick / 中英切换 | 不再报 APP_QUOTA_EXCEEDED / agent.session.auto / 502；工具与真实 LLM 均有成功返回 |
+| harness smoke | `pwsh -File scripts/review_smoke_opencli.ps1` | 自动完成开镇 / 戏剧开场 3 tick / 注入后 1 tick / 居民档案 / 中英切换；`result.json` 为 PASS，RPC 无 error/failed |
 | 截图齐备 | 见 §3 | 至少 4 张(空舞台 / 居民点亮 / 章节卡 / 日终故事)|
 
 > 真机截图脚本化的好处是排障「前端不可用」时,可一眼看出到底是 bundle 坏了还是 harness 坏了。本次就是只动 manifest + harness 就能跑通,排除了「前端 broken」的嫌疑。
@@ -175,6 +175,7 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - [ ] `uv run ruff format --check . && uv run ruff check .` 通过
 - [ ] `uv run pytest -q` 全绿
 - [ ] Windows 默认环境（不依赖手动 `PYTHONUTF8=1`）下 mock E2E 通过
+- [ ] `pwsh -File scripts/review_smoke_opencli.ps1` 真实 LLM smoke 输出 PASS、5 张截图且 `rpcErrors=0`
 - [ ] `manifest.json#ui.host_api` 是嵌套对象,含 `agent.session.auto: true`
 - [ ] 版本号四处对齐(executa.json / app.json / pyproject.toml / __init__.py)
 - [ ] `executa.json#binary_urls` 指向最新 tag

@@ -13,11 +13,44 @@ uv run ruff check .
 pnpm exec anna-app validate
 ```
 
-浏览器 smoke 使用独立 harness：
+浏览器 smoke 已整理为可复现脚本：
 
 ```powershell
-pnpm exec anna-app dev --port 5181 --executa dir=.
+pwsh -File scripts/review_smoke_opencli.ps1 -Port 5181
 ```
+
+脚本按以下顺序执行：
+
+1. 检查 `pnpm`、`opencli` 和目标端口，并运行 `opencli doctor`。
+2. 启动 `anna-app dev --executa dir=.`，等待 harness 监听。
+3. 通过 `window.__truman` 审核钩子初始化小镇，选择戏剧开场并等待 3 个真实 LLM tick。
+4. 从 UI 注入导演事件，再推进 1 tick，断言事件出现在字幕中。
+5. 打开居民档案、切换英文 UI，断言英文时间码生效。
+6. 输出带 harness 的技术证据、960×880 干净截图、`result.json`、stdout/stderr 日志。
+7. 默认关闭 OpenCLI lease 并终止本次启动的 harness 进程树。
+
+默认输出目录：`../review/opencli-smoke-<timestamp>/`。常用参数：
+
+```powershell
+# 自定义事件、开场（0～2）和居民
+pwsh -File scripts/review_smoke_opencli.ps1 `
+  -OpeningIndex 1 `
+  -InjectedEvent "暴雨突然来临，咖啡馆成为临时避雨点。" `
+  -ResidentId alice
+
+# 调试失败：保留 harness 与浏览器
+pwsh -File scripts/review_smoke_opencli.ps1 -KeepHarness -KeepBrowser
+
+# 使用确定性 LLM fixture（路径相对仓库根；如已有 fixture）
+pwsh -File scripts/review_smoke_opencli.ps1 -MockLlmFixture path/to/fixture.jsonl
+```
+
+该脚本只覆盖本地 developer harness，不修改 Anna 账号默认 Agent、线上 working draft 或审核状态。
+Developer Console 的“安装测试”仍需使用已登录的 Anna 页面单独验证；当前平台的 qualified app ref
+解析和 bundled Executa 自动部署问题也应独立留证，不能被 harness 通过所替代。
+
+2026-09-01 在 Windows + 真实 LLM 模式完整实跑通过：`lost_grinder` 开场推进到 t3，暴雨事件在
+t4 生效，居民档案与英文时间码正常，生成 5 张截图，`rpcErrors=0`；退出后 5181 端口已释放。
 
 ## 2. 协议 acceptance 结果
 

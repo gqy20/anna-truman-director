@@ -84,6 +84,34 @@ uv run ruff format --check .  # 发布门禁：格式检查
 uv run ruff check .           # lint（E/F/W/I/N/UP/B/SIM/RUF/ASYNC）
 ```
 
+### 一键浏览器审核 smoke（Windows）
+
+下面的脚本会启动 `anna-app dev --executa dir=.`，通过 OpenCLI 完成开镇、戏剧开场的 3 个真实
+LLM tick、导演事件注入、居民档案和中英文切换，并生成技术证据截图、干净审核图、结果 JSON 与
+harness 日志：
+
+```powershell
+pwsh -File scripts/review_smoke_opencli.ps1
+```
+
+常用参数：
+
+```powershell
+# 改端口、事件和居民
+pwsh -File scripts/review_smoke_opencli.ps1 `
+  -Port 5181 `
+  -InjectedEvent "暴雨突然来临，咖啡馆成为临时避雨点。" `
+  -ResidentId alice
+
+# 失败后保留 harness / 浏览器，便于手工检查
+pwsh -File scripts/review_smoke_opencli.ps1 -KeepHarness -KeepBrowser
+```
+
+默认输出到仓库外的 `../review/opencli-smoke-<timestamp>/`，不会修改 Anna 账号的默认 Agent、线上
+working draft 或审核状态。运行前需要 Chrome 中的 OpenCLI 扩展在线，且 `opencli doctor` 通过；真实
+LLM 模式还需要有效的 Anna/BYOK 登录配置。完整流程与输出说明见
+[`docs/QA-EVIDENCE-2026-09-01.md`](docs/QA-EVIDENCE-2026-09-01.md)。
+
 ### Pre-commit 钩子
 
 `.pre-commit-config.yaml` 配置了四个钩子：
