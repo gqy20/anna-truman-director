@@ -20,22 +20,22 @@
         "supports_protocol": true,
         "binary_urls": {
           "darwin-arm64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.2/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.4/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "darwin-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.2/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.4/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "linux-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.2/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.4/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "windows-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.2/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
+            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.4/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc.exe",
             "format": "tar.gz"
           }
