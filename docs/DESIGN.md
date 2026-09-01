@@ -251,6 +251,7 @@ tick 检测 day 滚动 → reflect(当日事件, 各居民记忆) → 落账 ins
 
 - **设计系统**:token 制(`--amber` 导演琥珀 / `--rose` / `--cyan` 交流青 / 暖白墨色),五级字号,系统字体三件套(衬线 Georgia/Noto Serif CJK、等宽 ui-monospace、无衬线系统栈)——零字体文件,CSP `'self'` 安全;胶片颗粒(SVG feTurbulence)+ 暗角营造监视器质感。
 - **流体缩放**:根字号 `clamp(12.5px, 10.5px+0.38vw, 16px)`,全部尺寸走 rem token 或 `clamp()`——窗口拖大(520→1440px)整体优雅放大而非中间留白;面板夹在 `clamp(15rem, 30vw, 20rem)` 不挤压舞台;极窄(≤560px)面板沉底。窗口声明:默认 960×880,min 520×600,max 1440×1080,resizable。
+- **动效层(第一波,d4b49f1)**:天色时相(舞台背景随 world_time 在 night/dawn/noon/dusk 四档渐变间 12s 流动);居民点呼吸 glow(按 agent_id 哈希播种负延迟,talk 快脉冲);章节卡 stagger 入场;时间码 tc-roll 翻动(值变化才重绘);`prefers-reduced-motion` 全局降级。**原则:运动是叙事装置不是装饰**——第二波候选:建筑灯火闪烁、world_change 天气粒子、故事纸展开/cliffhanger 打字机、字幕 tick 分组折叠、面板折叠看戏模式。
 - **文案纪律**(§3.6 延伸):两个字能说清的不用十个;状态即 toast(3.2s 自动消失,错误停留);地图文字降到悬浮提示;错误码翻译成人话(`friendlyError`,原文透传兜底)。
 - **中英双语(zh/en)**:顶栏一键切换,localStorage 记忆;静态文案走 T 字典,人物/地点用快照里的 `name_zh`/`occupation_zh`/`goal_en`(缺失回退 canonical);LLM 输出语言由 `world.lang` 决定——init/reset/tick 接受 `lang`,引擎按语言拼 prompt 规则(reason/日故事跟随),`localized_view` 保证模型只见单一语言。历史内容保持生成时的语言,不做事后机器翻译。
 - **戏剧开场**:init 成功后弹三选一章节卡(模板来自 §9 M1.2 场景数据),一键 = `inject_event` + bundle 顺序驱动 3 个单 tick invoke(每 invoke ≤90s 安全余量)。
