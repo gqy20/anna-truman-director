@@ -393,7 +393,17 @@ async function onInject() {
 // ─── render:只读快照,不思考 ─────────────────────────────────────────
 
 // 真机调试钩子:opencli/控制台可直接驱动内部动作,不进 UI。
-window.__truman = { invokeWorld, refresh, onStart, showOpenings, toggleLang, get lang() { return LANG; } };
+window.__truman = {
+  invokeWorld,
+  refresh,
+  onStart,
+  onTick,
+  showOpenings,
+  pickOpening,
+  dismissOpenings: () => ($("openings").hidden = true),
+  toggleLang,
+  get lang() { return LANG; },
+};
 
 let lastStoryDay = null; // cliffhanger 定格检测
 let lastMaxTick = -1; // 字幕"新条目"动画判定
@@ -421,7 +431,7 @@ function renderStageEmpty() {
   $("map").innerHTML =
     `<div class="stage-empty">` +
     `<span class="empty-k">STANDBY</span>` +
-    `<button class="big-start">${t().openTown}</button>` +
+    `<button id="btn-start" class="big-start">${t().openTown}</button>` +
     `<span class="empty-sub">${t().emptySub}</span>` +
     `</div>`;
 }
@@ -429,7 +439,7 @@ function renderStageEmpty() {
 let lastTcKey = null;
 function renderTimecode(world) {
   const tick = String(world.current_tick ?? 0).padStart(3, "0");
-  const key = `${world.day || 1}|${world.world_time}|${tick}`;
+  const key = `${LANG}|${world.day || 1}|${world.world_time}|${tick}`;
   if (key === lastTcKey) return; // 无变化不重绘,光标动画不重启
   lastTcKey = key;
   const rolled = lastTcKey !== null; // 首帧不动画

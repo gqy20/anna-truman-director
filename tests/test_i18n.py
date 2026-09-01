@@ -87,7 +87,9 @@ def test_localized_view_falls_back_when_zh_missing():
 
 async def test_decide_system_prompt_carries_matching_lang_rule():
     w = _world()
-    sampling = FakeSampling(events=[{"agent_id": "alice", "action": "work", "target": None, "reason": "r"}])
+    sampling = FakeSampling(
+        events=[{"agent_id": "alice", "action": "work", "target": None, "reason": "r"}]
+    )
     await engine.decide(sampling, engine.localized_view(w))
     sys_zh = sampling.calls[0]["system_prompt"]
     assert "简体中文" in sys_zh and "English" not in sys_zh

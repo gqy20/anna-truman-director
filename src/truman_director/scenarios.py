@@ -220,7 +220,7 @@ DRAMATIC_OPENINGS: list[dict] = [
         "event_en": {
             "action": "world_change",
             "reason": (
-                'An unsigned letter is slipped under Truman\'s door carrying a '
+                "An unsigned letter is slipped under Truman's door carrying a "
                 'single line: "Trust no one."'
             ),
             "importance": 0.95,

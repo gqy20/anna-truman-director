@@ -46,7 +46,7 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 | `src/truman_director/scenarios.py` | `cafe_town` 双语场景 + `DRAMATIC_OPENINGS`（title/hint/event 各有 `_en` 镜像）+ `build_from_spec` 校验 |
 | `src/truman_director/storage.py` | APS KV 反向 RPC（`KEY="truman:run:world"`）；日志含字节数兼作快照体积监控 |
 | `src/truman_director/prompts.yaml` | LLM prompt 单一来源：`system_prompt`（含 **OUTPUT FORMAT (strict)** 段）、`lang_rules`（zh/en）、`narrator_prompt`/`narrator_lang`/`narrator_tail` |
-| `bundle/app.js` | 渲染层全部接线 + 动效（见 DESIGN §8 三波动效）；`window.__truman` 调试钩子（invokeWorld/refresh/onStart/showOpenings/toggleLang/lang） |
+| `bundle/app.js` | 渲染层全部接线 + 动效（见 DESIGN §8 三波动效）；`window.__truman` 调试钩子（invokeWorld/refresh/onStart/onTick/showOpenings/pickOpening/dismissOpenings/toggleLang/lang） |
 | `bundle/index.html` / `style.css` | 「导演监视器」：顶栏时间码 + 舞台（时相天色/剪影灯火/天气粒子/发光居民点）+ 今日故事/字幕（tick 分组）+ 导演注入栏；token 制 + rem 流体缩放；看戏模式；live-card 浮卡 |
 | `scripts/local_e2e.py` | 协议级真 E2E 驱动：spawn 真插件 + 真 LLM 全链路（`MOCK=1` 离线回放）；Node 子进程 fetch 绕 Cloudflare TLS 指纹（1010） |
 | `scripts/package_binary.sh` / `src/_entry.py` | PyInstaller 打包（单平台本地 / CI matrix） |

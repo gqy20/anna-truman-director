@@ -517,12 +517,15 @@ class WorldState:
 # 错误码定义
 {
     "code": -32001, "message": "World not initialized",
-    "code": -32002, "message": "Agent not found",
-    "code": -32003, "message": "Invalid scenario",
-    "code": -32004, "message": "Invalid event type",
-    "code": -32005, "message": "World already exists"
+    "code": -32002, "message": "Invalid world spec",
+    "code": -32003, "message": "Unknown scenario",
+    "code": -32004, "message": "Tick budget exceeded",
+    "code": -32005, "message": "Agent not found",
+    "code": -32006, "message": "Invalid director event"
 }
 ```
+
+当前实现以 `src/truman_director/errors.py` 和 `docs/TECHNICAL.md#74-错误码` 为准。
 
 ---
 

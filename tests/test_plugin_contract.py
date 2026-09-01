@@ -28,9 +28,10 @@ _SRC_DIR = str(Path(__file__).resolve().parent.parent / "src")
 def _rpc(*requests: dict) -> list[dict]:
     proc = subprocess.run(
         [sys.executable, "-m", "truman_director.plugin"],
-        input="\n".join(json.dumps(r) for r in requests) + "\n",
+        input="\n".join(json.dumps(r, ensure_ascii=False) for r in requests) + "\n",
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=15,
         env={**os.environ, "PYTHONPATH": _SRC_DIR},
     )
@@ -79,6 +80,11 @@ def test_unknown_method_returns_error():
     assert resp["error"]["code"] == -32601
 
 
+def test_stdio_protocol_round_trips_utf8():
+    resp = _rpc({"jsonrpc": "2.0", "id": 10, "method": "不存在"})[0]
+    assert resp["error"]["message"] == "method not found: 不存在"
+
+
 def test_stdout_is_pure_protocol_and_stderr_carries_logs():
     """Channel discipline (DESIGN §13.1 / official pitfall #3): stdout must
     contain ONLY JSON-RPC frames — any banner or log line there corrupts the
@@ -100,6 +106,7 @@ def test_stdout_is_pure_protocol_and_stderr_carries_logs():
         ),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=15,
         env={**os.environ, "PYTHONPATH": _SRC_DIR},
     )

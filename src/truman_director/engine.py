@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 from executa_sdk import SamplingClient, emit_progress
 
-from .errors import TickBudgetExceededError
+from .errors import AgentNotFoundError, InvalidEventSpecError, TickBudgetExceededError
 from .state import MAX_STORIES, DayStory, WorldState, event_to_dict
 from .storage import save
 
@@ -130,6 +130,7 @@ def localized_view(world: WorldState) -> dict:
         a.pop("occupation_zh", None)
         a.pop("goal_en", None)
     return view
+
 
 # BYOK reasoning models (MiniMax-M3, glm-5.x) inline a <think> block that can
 # run thousands of tokens before the JSON payload; a tight cap truncates the
@@ -248,7 +249,7 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     """Ask the model what every agent should do this tick. Returns the raw events list."""
     payload = json.dumps(world_view, ensure_ascii=False)
     system = f"{SYSTEM_PROMPT}\n\n{_lang_rule(world_view.get('lang', 'zh'))}"
-    data, parse_path, text, retries = await _sample_json(
+    data, parse_path, text, _retries = await _sample_json(
         sampling,
         system=system,
         user_text=payload,
@@ -469,8 +470,45 @@ async def tick(
     return results
 
 
+INJECTION_ACTIONS = frozenset({"world_change", "move", "talk", "work", "rest"})
+
+
+def _validate_injection(world: WorldState, event_spec: dict) -> None:
+    if not isinstance(event_spec, dict):
+        raise InvalidEventSpecError("event must be an object")
+
+    action = event_spec.get("action", "world_change")
+    if action not in INJECTION_ACTIONS:
+        raise InvalidEventSpecError(
+            f"event.action must be one of {sorted(INJECTION_ACTIONS)}, got {action!r}"
+        )
+
+    agent_id = event_spec.get("agent_id")
+    if agent_id is not None and agent_id not in world.agents:
+        raise AgentNotFoundError(f"agent not found: {agent_id!r}")
+    if action != "world_change" and agent_id is None:
+        raise InvalidEventSpecError(f"{action!r} injection requires agent_id")
+
+    target = event_spec.get("target")
+    if action == "move" and target not in world.locations:
+        raise InvalidEventSpecError(f"move target must be a known location, got {target!r}")
+    if action == "talk" and target not in world.agents:
+        raise AgentNotFoundError(f"target agent not found: {target!r}")
+
+    reason = event_spec.get("reason", event_spec.get("description"))
+    if not isinstance(reason, str) or not reason.strip():
+        raise InvalidEventSpecError("event.reason must be a non-empty string")
+
+    importance = event_spec.get("importance", 0.9)
+    if not isinstance(importance, (int, float)) or isinstance(importance, bool):
+        raise InvalidEventSpecError("event.importance must be a number between 0 and 1")
+    if not 0 <= importance <= 1:
+        raise InvalidEventSpecError("event.importance must be between 0 and 1")
+
+
 def apply_inject_event(world: WorldState, event_spec: dict) -> dict:
     """Queue a director-injected event to fire at the next tick."""
+    _validate_injection(world, event_spec)
     injection_id = f"inj_{uuid.uuid4().hex[:8]}"
     _log.info(
         "injection queued id=%s effective_tick=%s action=%s",

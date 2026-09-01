@@ -889,16 +889,19 @@ if __name__ == "__main__":
 
 ### 7.4 错误码
 
-JSON-RPC 2.0 预定义 + Anna 扩展。**Plugin 主动抛的只剩 3 个**，其余让 SDK / host 自然抛出：
+JSON-RPC 2.0 预定义 + Truman 业务错误。Storage / sampling 错误保留 SDK / host 的原始 code；业务输入错误使用稳定 code，供 bundle 和 QA 明确断言：
 
 | Code | 含义 | 何时抛 |
 |------|------|--------|
 | `-32700` | Parse error | stdio 收到非法 JSON（plugin 不会捕获，让 host 重启） |
 | `-32601` | Method not found | host 调了 plugin 不认识的方法 |
-| `-32000` | Server error | tool 抛未捕获异常（plugin 不捕获，让 traceback 上 host） |
-| `-32001` | World not initialized | 调 tick / inject_event 但从未 init |
-
-`v0.1` 的 `-32002`（agent_id 找不到）/ `-32003`（scenario 非法）/ `-32004`（event_type 非法）/ `-32005`（world 已存在）全部删除 —— 模型直接生成正确的 agent_id / scenario / event_type，不需要 plugin 校验。
+| `-32000` | Server error | 未分类异常的协议兜底；stderr 同时保留 traceback |
+| `-32001` | World not initialized | tick / inject / query 前没有可初始化或可恢复的世界 |
+| `-32002` | Invalid world spec | 自定义世界字段、引用或 lang 非法 |
+| `-32003` | Unknown scenario | scenario slug 不存在 |
+| `-32004` | Tick budget exceeded | 单次 invoke 请求超过最大 tick 数 |
+| `-32005` | Agent not found | get_agent 或定向事件引用未知居民 |
+| `-32006` | Invalid event spec | 导演事件 action、target、reason 或 importance 非法 |
 
 ---
 

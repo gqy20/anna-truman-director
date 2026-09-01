@@ -40,6 +40,13 @@ MOCK = os.environ.get("MOCK") == "1"
 _LOCAL_PROXY = os.environ.get("ANNA_E2E_PROXY", "http://127.0.0.1:7890")
 
 
+def _configure_console_utf8() -> None:
+    """Keep Windows E2E diagnostics readable when they contain CJK or emoji."""
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(AttributeError, OSError):
+            stream.reconfigure(encoding="utf-8", errors="strict")
+
+
 def _http_post_json(url: str, body: dict, headers: dict, timeout: int = 60) -> dict:
     """POST via a Node child process: the platform API sits behind Cloudflare,
     which rejects urllib/curl TLS fingerprints (error 1010) but accepts the
@@ -343,4 +350,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    _configure_console_utf8()
     main()

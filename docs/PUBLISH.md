@@ -7,8 +7,10 @@
 | 项 | 命令 | 通过条件 |
 |---|---|---|
 | manifest 校验 | `pnpm exec anna-app validate` | `validate passed` |
+| 格式 / lint | `uv run ruff format --check . && uv run ruff check .` | 全部通过 |
 | 单元测试 | `uv run pytest -q` | 全绿 |
-| harness smoke | `pnpm exec anna-app dev --executa dir=.` 起 harness,opencli 在 iframe 里点「开镇」 | 不再报 APP_QUOTA_EXCEEDED / agent.session.auto / 502 |
+| 协议 E2E | `MOCK=1 uv run python scripts/local_e2e.py` | init → tick → 跨午夜 narrate → get_story 全链路通过 |
+| harness smoke | `pnpm exec anna-app dev --executa dir=.` 起 harness,在 iframe 里完成开镇 / 注入 / 3 tick / 中英切换 | 不再报 APP_QUOTA_EXCEEDED / agent.session.auto / 502；工具与真实 LLM 均有成功返回 |
 | 截图齐备 | 见 §3 | 至少 4 张(空舞台 / 居民点亮 / 章节卡 / 日终故事)|
 
 > 真机截图脚本化的好处是排障「前端不可用」时,可一眼看出到底是 bundle 坏了还是 harness 坏了。本次就是只动 manifest + harness 就能跑通,排除了「前端 broken」的嫌疑。
@@ -138,6 +140,14 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 # 然后 click 保存按钮,等待 "Saved." toast
 ```
 
+### 当前截图工作区
+
+- OpenCLI 原图（含 harness 外框）：`../review/marketplace-screenshots-current/*.png`
+- Marketplace 干净候选图：`../review/marketplace-screenshots-current/clean/*.png`
+- 建议 cover：`02-first-act.png`
+- 建议首批截图：`03-town-overview.png`、`06-english-view.png`、`07-day-story.png`
+- `04-targeted-intervention.png` / `05-continued-evolution.png` 保留为 QA 证据；本次真实模型把“获得 500 元”误写成“输了 500 元”，不要直接上传为商品图，应用稳定 fixture 重拍
+
 ## 4. 常见陷阱与排障
 
 | 症状 | 根因 | 解决 |
@@ -148,27 +158,39 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 | `apps submit-review` 报 `App 状态不允许提交审核: pending_review` | 上一轮审核未结束 | **必须等审核员走完一轮**(reject/approve),平台不允许覆盖提交 |
 | Developer Console 报 `Save failed: manifest does not declare agent.session.auto` | manifest host_api 写法错误(数组而非嵌套对象),缺 agent.session.auto: true | 见 §2 |
 | `desc:` 时 dev harness 跑一会挂 / `Object has no member 'ref'` | bundle SDK 在 harness 进程里调 agent.session.refresh 被拒 | 修了上面之后正常 |
-| BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 平台侧问题,等修复 |
+| BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 官方论坛 2026-08-27 确认修复于 `v1.1.0-beta.144`；升级后重跑原矩阵并在 topic 256 回帖确认 |
 
 ## 5. 检查清单(checklist)
 
 每次发布过一遍:
 
 - [ ] `pnpm exec anna-app validate` 通过
+- [ ] `uv run ruff format --check . && uv run ruff check .` 通过
 - [ ] `uv run pytest -q` 全绿
+- [ ] Windows 默认环境（不依赖手动 `PYTHONUTF8=1`）下 mock E2E 通过
 - [ ] `manifest.json#ui.host_api` 是嵌套对象,含 `agent.session.auto: true`
 - [ ] 版本号四处对齐(executa.json / app.json / pyproject.toml / __init__.py)
 - [ ] `executa.json#binary_urls` 指向最新 tag
 - [ ] GitHub Release 4 tar.gz + 4 sha256 齐全
 - [ ] Developer Console「基本信息」表单已填 homepage/support/privacy/cover/screenshot URL
 - [ ] `docs/PRIVACY.md` 在仓库里
+- [ ] 按 `docs/REVIEW-FEEDBACK.md` 跑完 TC-01～TC-05，并保存工具输入、工具输出和前端结果证据
+- [ ] `uv run python scripts/review_acceptance.py` 输出 TC-01～TC-05 + Security 全 PASS
+- [ ] 安全复核完成：动态文本转义、CSP、权限最小化、无密钥入库
 - [ ] `apps push` + `executa publish` + `apps cut <version>` 顺序正确
 - [ ] `apps submit-review` 已发(或等上轮结束)
 
-## 6. 当前进度(2026-08-19)
+## 6. 历史审核反馈
+
+2026-08-19 的 v0.3.3 Marketplace 审核把问题分成五类：App frontend 不可访问、Tools 不可执行、Permission 无法保存、产品页/截图缺失，以及 TC-01～TC-05 与安全检查无法验证。逐项闭环状态、证据和剩余缺口统一维护在 [`REVIEW-FEEDBACK.md`](REVIEW-FEEDBACK.md)，不要再从旧邮件草稿推断当前状态。
+
+## 7. 当前进度(2026-09-01)
 
 - v0.4.3 已 cut(version_id=521,锁定 executable v0.4.2)
-- 平台状态 `pending_review`(上一轮仍未走完,等审核员拒绝或通过后我们再动)
+- 平台状态仍为 `pending_review`；线上 latest 是 v0.3.3，不能用当前 `main` 覆盖审核快照
 - 仓库已提交:`fix(manifest): host_api 嵌套对象 + agent.session.auto: true` (38a3435),`docs: PRIVACY.md + ignore` (af9ae25)
 - Developer Console「基本信息」表单已保存(homepage/support/privacy/cover/screenshot URL 全部填好)
-- 等上一轮审核走完 → Jiao 回复 → 视情况重提或 release
+- v0.4.3 截图 Release 有 4 张 PNG，但 2026-09-01 后 `main` 又完成三轮 bundle 打磨；下次提审前应重拍，避免商店图与实际 UI 不一致
+- 2026-09-01 本地验证：90 tests、Ruff、manifest、Windows UTF-8 mock E2E 全绿；harness 完成真实 LLM 开镇、事件注入、定向居民事件、XSS inert-markup、3 tick 与中英切换
+- 当前 `main` 包含 v0.4.2 tag 之后的引擎改动，不能继续复用 v0.4.2 binary；下一版需升版并重新构建四平台资产
+- 等 v0.4.3 审核结束 → 补 TC-04 / TC-05 / Security 证据 → 以新版本重新 cut / submit-review

@@ -7,6 +7,7 @@ Business error codes under the ``TrumanError`` umbrella:
     -32003  UnknownScenarioError
     -32004  TickBudgetExceededError
     -32005  AgentNotFoundError
+    -32006  InvalidEventSpecError
 """
 
 
@@ -50,3 +51,9 @@ class AgentNotFoundError(TrumanError):
     """``get_agent`` asked for an agent_id that is not in the world."""
 
     code = -32005
+
+
+class InvalidEventSpecError(TrumanError):
+    """A director injection has an unknown action or invalid target/value."""
+
+    code = -32006

@@ -181,12 +181,8 @@ def _agent_detail(world: WorldState, agent_id: str) -> dict:
             "personality": agent.personality,
             "current_activity": agent.current_activity,
         },
-        "location": (
-            {"id": loc.id, "name": loc.name, "name_zh": loc.name_zh} if loc else None
-        ),
-        "home": (
-            {"id": home.id, "name": home.name, "name_zh": home.name_zh} if home else None
-        ),
+        "location": ({"id": loc.id, "name": loc.name, "name_zh": loc.name_zh} if loc else None),
+        "home": ({"id": home.id, "name": home.name, "name_zh": home.name_zh} if home else None),
         "relationships": relationships,
         "recent_events": involved[-10:],
     }
@@ -418,6 +414,21 @@ async def _main() -> None:
     await _stop.wait()
 
 
+def _configure_stdio() -> None:
+    """Force the JSON-RPC pipes to UTF-8 on every platform.
+
+    Windows otherwise decodes redirected stdin with the active legacy code
+    page. A host writing UTF-8 JSON can then turn valid CJK text into surrogate
+    code points, which fail later when the world snapshot is serialized.
+    Protocol streams stay strict so malformed bytes fail loudly.
+    """
+    for stream in (sys.stdin, sys.stdout):
+        with contextlib.suppress(AttributeError, OSError):  # non-reconfigurable stream
+            stream.reconfigure(encoding="utf-8", errors="strict")
+    with contextlib.suppress(AttributeError, OSError):
+        sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def _configure_logging() -> None:
     """stderr-only logging (DESIGN §13.1). stdout is the JSON-RPC channel — any
     human-readable output there corrupts the protocol stream (official pitfall
@@ -425,9 +436,6 @@ def _configure_logging() -> None:
     (INFO in production, DEBUG when diagnosing). Windows consoles default to a
     legacy code page — force UTF-8 so log lines with Chinese text can't crash
     the stream writer."""
-    if sys.stderr.encoding and sys.stderr.encoding.lower().replace("-", "") != "utf8":
-        with contextlib.suppress(AttributeError, OSError):  # non-reconfigurable stream
-            sys.stderr.reconfigure(encoding="utf-8")
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s", datefmt="%H:%M:%S")
@@ -439,6 +447,7 @@ def _configure_logging() -> None:
 
 
 def main() -> None:
+    _configure_stdio()
     _configure_logging()
     _log.info("ready v%s", __version__)
     asyncio.run(_main())

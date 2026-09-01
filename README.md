@@ -79,9 +79,9 @@ uv run truman-director  # 启动 stdio 插件（stderr 打印 "ready"）
 ### 测试、格式化、lint
 
 ```bash
-uv run pytest -q        # 41 个测试，asyncio_mode=auto
-uv run ruff format .    # 格式化
-uv run ruff check .     # lint（E/F/W/I/N/UP/B/SIM/RUF/ASYNC）
+uv run pytest -q              # 90 个测试，asyncio_mode=auto
+uv run ruff format --check .  # 发布门禁：格式检查
+uv run ruff check .           # lint（E/F/W/I/N/UP/B/SIM/RUF/ASYNC）
 ```
 
 ### Pre-commit 钩子
@@ -125,13 +125,15 @@ docs(readme): document threading model
 - [x] work/rest 决策落地为真实状态（`Agent.current_activity`，地图与时间线可见）。
 - [x] 进程重启后从 APS KV 自动恢复世界（`load()` 接通，无需重新 init）。
 - [x] 提审流程跑通并完成 v0.4.3 修复（`docs/PUBLISH.md` 沉淀实战经验）。
-- [ ] 铸造正式的 `tool_id`，并通过 `anna-app dev` 跑通整个 App 的端到端流程。
+- [x] 铸造正式 `tool_id`，并通过 `anna-app dev` 跑通开镇、事件注入、真实 LLM 三 tick 与中英切换。
+- [x] 本地补齐 Marketplace TC-04（单个居民干预）与 TC-05（跨多 tick / 插件重启）的自动化证据。
+- [ ] 在真实 Matrix Agent + APS backend 上复跑 TC-05，并等待平台 QA 复审。
 - [ ] 在 `cafe_town` 之外补充更多场景。
 - [ ] 更丰富的 bundle 渲染（关系、智能体对话）。
 
 ## 发布
 
-详见 [docs/PUBLISH.md](docs/PUBLISH.md) —— 包含完整命令行流程、manifest host_api 嵌套对象的正确形态（这是 v0.4.3 修复的两个 QA 阻塞的根因）、Marketplace 截图走 GitHub Release 公网 URL 的方法、还有发布 checklist。
+详见 [docs/PUBLISH.md](docs/PUBLISH.md) —— 包含完整命令行流程、manifest host_api 嵌套对象的正确形态（这是 v0.4.3 修复的两个 QA 阻塞的根因）、Marketplace 截图走 GitHub Release 公网 URL 的方法、还有发布 checklist。历史审核意见与当前闭环状态见 [docs/REVIEW-FEEDBACK.md](docs/REVIEW-FEEDBACK.md)。
 
 ## 许可证
 
