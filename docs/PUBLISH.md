@@ -242,4 +242,7 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - `apps push` 已更新 working draft rev 6；`executa publish` 与 `apps cut 0.4.4` 均成功
 - 2026-09-01 真机复核发现 v0.4.4 immutable ExecutaVersion 在 Windows 安装时报 `No binary available for platform 'windows-x86_64'`，尽管当前 Executa 记录和 GitHub Release 已有四平台；working draft 因此 `deploy_status=degraded` / `executa_not_deployed`
 - Executa Hub Install 还存在默认 Local 却请求 Cloud Agent 的前端选路 bug；Network 证据显示请求落到 Cloud client_id
-- 下一步：发布 v0.4.5 Executa（四平台先写入并冻结）→ Windows 真机安装/调用 → 再 cut App v0.4.5。v0.4.4 不得 release
+- v0.4.5 tag/Release 已完成：workflow 全绿，4 binary + 4 SHA256 + 4 Marketplace PNG 共 12 个资产；元数据已 sync，working draft rev 7；本地 90 tests/Ruff/manifest/mock E2E/TC-01～TC-05/Security/真实 OpenCLI smoke 全绿
+- 首次 v0.4.5 pull-mirror 快照(id=432)仍丢 Windows/Intel macOS，确认无 AppVersion 引用后已 yank；随后用 `binary_artifacts` 直传四平台并重建 v0.4.5(id=433, `binary_source=direct-upload`)
+- 当前 Executa/UserExecuta 均回读四平台，且刷新安装记录(7404→10649)后授权已恢复、credentials 为空；但 Local Windows reinstall 后端仍错误返回只有 `darwin-arm64, linux-x86_64`
+- 因真机门禁失败，App v0.4.5 **尚未 cut**；审核候选仍是 v0.4.4，线上 latest 仍是 v0.3.3。下一步必须由平台修复 `/agents/{client_id}/plugins/reinstall` 的平台解析后再重试，禁止绕过并 cut/release

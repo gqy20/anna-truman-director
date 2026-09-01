@@ -96,4 +96,4 @@
 - 明确请求 Local Agent reinstall 后，平台返回 `No binary available for platform 'windows-x86_64'. Available platforms: darwin-arm64, linux-x86_64`。
 - GitHub v0.4.4 Release 和当前 `/executas/my` 记录虽已有四平台，但 immutable ExecutaVersion 427 的安装快照不完整；后补当前记录不会修复旧快照。
 
-因此 v0.4.4 不得 release。修复路径是发布全新 v0.4.5 ExecutaVersion，在 App cut 前完成 Windows Agent 安装、`world init` 与至少 1 tick 真机验证。
+因此 v0.4.4 不得 release。v0.4.5 已完成四平台 Release、Marketplace 图片迁移、working draft rev 7、ExecutaVersion 直传重建(id=433)和全量本地测试；但平台 reinstall 后端即使面对 `binary_source=direct-upload`、四平台当前记录和全新 UserExecuta 安装记录，仍只识别 `darwin-arm64, linux-x86_64`。App v0.4.5 未 cut，审核候选仍保持 v0.4.4，等待平台修复安装解析后再继续。

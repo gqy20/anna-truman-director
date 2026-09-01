@@ -161,7 +161,7 @@ Acceptance runner 执行：
 
 ## 7. 尚未完成
 
-- 发布 v0.4.5 ExecutaVersion，并在真实 Windows Matrix Agent 验证安装、`world init`、1 tick 与 APS backend。
-- 将新版 Marketplace 图片追加到 v0.4.5 版本 Release，sync-meta 回读后再决定旧 screenshots Release 的删除时间。
+- 平台修复 Windows reinstall 平台解析后，重新验证 v0.4.5 安装、`world init`、1 tick 与 APS backend；当前 direct-upload v0.4.5 仍被错误判定只有 macOS ARM/Linux。
+- v0.4.5 Marketplace 图片已追加到版本 Release并 sync-meta；旧 screenshots Release 继续保留到新审核候选/上架完成。
 - 按 GLM / MiniMax / DeepSeek 原矩阵复测 BYOK，并在论坛 topic 256 回帖。
-- cut App v0.4.5，并确认现有 `pending_review` 的候选指针已更新到 v0.4.5。
+- 真机安装门禁通过后再 cut App v0.4.5，并确认现有 `pending_review` 的候选指针已更新到 v0.4.5。
