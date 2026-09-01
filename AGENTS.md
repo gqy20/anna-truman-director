@@ -51,7 +51,7 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 | `scripts/local_e2e.py` | 协议级真 E2E 驱动：spawn 真插件 + 真 LLM 全链路（`MOCK=1` 离线回放）；Node 子进程 fetch 绕 Cloudflare TLS 指纹（1010） |
 | `scripts/package_binary.sh` / `src/_entry.py` | PyInstaller 打包（单平台本地 / CI matrix） |
 | `manifest.json` | `permissions`、`required_executas`、`system_prompt_addendum`、`ui.host_api`（**必须嵌套对象**，含 `agent.session.auto: true`——否则 Permission 保存失败，QA 整个 App 起不来） |
-| `app.json` / `executa.json` | App 描述 + bundled executas / Executa 发布声明（`binary_urls` 镜像 GitHub Release，指向当前 tag） |
+| `app.json` / `executa.json` | App 描述 + bundled executas / Executa 发布声明（生产使用四平台 `binary_artifacts`，从 GitHub Release 下载到本地后由 CLI 直传平台） |
 
 数据流（无环）：
 
@@ -103,7 +103,7 @@ bundle/app.js → anna.storage.get（渲染读取 plugin 写的同一 KV key）
 
 ## 发布（概要）
 
-完整流程/状态机/checklist 见 `docs/PUBLISH.md`。发布顺序是：目标版本和四平台 `binary_urls` 先写入 git → tag 触发四平台构建 → Release 资产完整性门禁 → `apps push` → `executa publish` 冻结 ExecutaVersion → **真实 Windows Agent 安装 + App 开镇/tick** → `apps cut`。只看到 GitHub 资产或当前 Executa 记录不算通过，必须验证冻结快照。Marketplace 截图从 v0.4.5 起追加到同一个版本 Release；任何仍被 `app.json`/平台元数据引用的旧截图 Release 不得删除。`pending_review` 下不要重复 submit，cut 后必须回读审核候选。
+完整流程/状态机/checklist 见 `docs/PUBLISH.md`。发布顺序是：目标版本和四平台 `binary_artifacts` 路径先写入 git → tag 触发四平台构建 → Release 资产完整性门禁 → 下载四个归档到 `dist-release/v<version>/` → `apps push` → `executa publish` 直传并冻结 ExecutaVersion → **真实 Windows Agent 安装 + App 开镇/tick** → `apps cut`。禁止使用会在服务端丢失 Windows/Intel macOS 的 `binary_urls` pull-mirror。只看到 GitHub 资产或当前 Executa 记录不算通过，必须验证冻结快照。Marketplace 截图从 v0.4.5 起追加到同一个版本 Release；任何仍被 `app.json`/平台元数据引用的旧截图 Release 不得删除。`pending_review` 下不要重复 submit，cut 后必须回读审核候选。
 
 ## Git 与提交
 

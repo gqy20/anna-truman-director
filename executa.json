@@ -18,24 +18,24 @@
         "type": "binary",
         "executable_name": "tool-qingyu_ge-anna-truman-director-sxah66uc",
         "supports_protocol": true,
-        "binary_urls": {
+        "binary_artifacts": {
           "darwin-arm64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
+            "path": "dist-release/v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-arm64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "darwin-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
+            "path": "dist-release/v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-darwin-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "linux-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
+            "path": "dist-release/v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-linux-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc",
             "format": "tar.gz"
           },
           "windows-x86_64": {
-            "url": "https://github.com/gqy20/anna-truman-director/releases/download/truman-director-v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
+            "path": "dist-release/v0.4.5/tool-qingyu_ge-anna-truman-director-sxah66uc-windows-x86_64.tar.gz",
             "entrypoint": "bin/tool-qingyu_ge-anna-truman-director-sxah66uc.exe",
             "format": "tar.gz"
           }

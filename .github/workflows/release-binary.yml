@@ -6,8 +6,12 @@
 # or run manually from the Actions tab. The release job refuses to publish an
 # incomplete matrix: all four archives must exist and contain the platform's
 # expected bin/<tool_id>[.exe] plus manifest.json. Keep the deterministic
-# Release URLs in executa.json BEFORE `anna-app executa publish`; that command
-# freezes the platform map into an immutable ExecutaVersion.
+# archive paths under `distribution.binary_artifacts` in executa.json. After
+# this workflow succeeds, download the four Release archives into those paths;
+# `anna-app executa publish` uploads them directly to the platform CDN and then
+# freezes the complete map into an immutable ExecutaVersion. Do not use the
+# pull-mirror `binary_urls` track: 2026-09-01 production testing showed it
+# silently dropped darwin-x86_64 and windows-x86_64 from the frozen snapshot.
 #
 # Marketplace screenshots may be uploaded to this same version Release only
 # AFTER this workflow finishes (`gh release upload <tag> ...`). They are listing

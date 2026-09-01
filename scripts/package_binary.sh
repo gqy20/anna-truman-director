@@ -9,9 +9,10 @@
 #   └── manifest.json         # runtime.binary.entrypoint.default + permissions
 #
 # The Agent reads manifest.json to locate the entrypoint (no guessing). The
-# same entrypoint and archive URL must also be declared under the active binary
-# profile in executa.json BEFORE `anna-app executa publish`; publishing freezes
-# that four-platform map into an immutable ExecutaVersion.
+# same entrypoint and local archive path must also be declared under the active
+# binary profile's binary_artifacts in executa.json. Download all four CI
+# archives into those paths before `anna-app executa publish`; the CLI uploads
+# them directly and freezes the complete map into an immutable ExecutaVersion.
 #
 # PyInstaller cannot cross-compile → builds only for the current host; the
 # GitHub Actions matrix runs this per runner (macos-14 → darwin-arm64,
@@ -181,4 +182,4 @@ echo "SHA-256: $SHA256"
 echo "Layout:"; tar tzf "$ARCHIVE"
 echo
 echo "entrypoint = bin/$TOOL_ID$EXE_EXT  (declared in archive manifest.json; keep the"
-echo "  same value in executa.json distribution.profiles.binary.binary_urls before publish)"
+echo "  same value in executa.json distribution.profiles.binary.binary_artifacts)"

@@ -25,19 +25,25 @@ git push origin truman-director-v0.4.5
 
 ## 在平台配置
 
-`binary_urls` 必须在 `anna-app executa publish` **之前**写进 `executa.json#distribution.profiles.binary.binary_urls`。Release URL 是确定的，可以在 tag 创建前按目标版本填写；等 CI 生成资产后逐个验证 URL，再执行 publish。publish 会把当时的四平台映射冻结进不可变 ExecutaVersion，之后修改 Executa Hub 当前记录不会反向修补旧快照。
+使用 `binary_artifacts` 直传，不再使用 `binary_urls` pull-mirror。2026-09-01 实测 pull-mirror 虽能把四平台写到当前 Executa 记录，却在 immutable ExecutaVersion 中只保留 `darwin-arm64` / `linux-x86_64`，导致 Windows 安装失败。
+
+先在 `executa.json#distribution.profiles.binary.binary_artifacts` 写入四个平台的本地归档路径。CI Release 完成后下载归档，再由 CLI 直传：
 
 ```json
 "linux-x86_64": {
-    "url": "https://github.com/<owner>/<repo>/releases/download/truman-director-v0.4.5/<tool_id>-linux-x86_64.tar.gz",
-  "sha256": "...",
-  "size": 23967421,
+  "path": "dist-release/v0.4.5/<tool_id>-linux-x86_64.tar.gz",
   "entrypoint": "bin/<tool_id>",
   "format": "tar.gz"
 }
 ```
 
-四个平台都要声明：`darwin-arm64`、`darwin-x86_64`、`linux-x86_64`、`windows-x86_64`；Windows entrypoint 必须带 `.exe`。`local` profile 继续保留作 dev，发布时 `active` 使用 `binary`。
+```bash
+gh release download truman-director-v0.4.5 --pattern 'tool-*.tar.gz' --dir dist-release/v0.4.5
+pnpm exec anna-app executa upload-binaries --dry-run --json
+pnpm exec anna-app executa publish  # 自动直传四个平台并 freeze
+```
+
+四个平台都要声明：`darwin-arm64`、`darwin-x86_64`、`linux-x86_64`、`windows-x86_64`；Windows entrypoint 必须带 `.exe`。`dist-release/` 是本地发布缓存，已 gitignore。`local` profile 继续保留作 dev，发布时 `active` 使用 `binary`。
 
 冻结后的硬门禁：在真实 Windows Agent 上从 Executa Hub 安装该版本并成功调用 `describe`/`world init`。如果安装 API 报 `No binary available for platform 'windows-x86_64'`，说明 immutable snapshot 不完整；此时禁止 `apps cut`，必须修正后发布新的 Executa patch 版本。
 

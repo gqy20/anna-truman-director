@@ -20,13 +20,13 @@
 引擎任何改动(纯云版/本地 Executa 切换/算法调整)必须走二进制;bundle 改动则不需要。
 
 ```bash
-# 1. 同步版本号(四处必对齐),并提前把 binary_urls 改为目标 tag。
-#    Release URL 是确定的；文件尚未生成不影响先写配置。
+# 1. 同步版本号(四处必对齐),并提前把 binary_artifacts.path 改为
+#    dist-release/v0.4.X+1/<tool_id>-<platform>.tar.gz。
 uv lock
 sed -i 's/"version": "0\.4\.X"/"version": "0.4.X+1"/' executa.json app.json
 sed -i 's/__version__ = "0\.4\.X"/__version__ = "0.4.X+1"/' src/truman_director/__init__.py
 sed -i 's/^version = "0\.4\.X"/version = "0.4.X+1"/' pyproject.toml
-sed -i 's|releases/download/truman-director-v0\.4\.X/|releases/download/truman-director-v0.4.X+1/|g' executa.json
+sed -i 's|dist-release/v0\.4\.X/|dist-release/v0.4.X+1/|g' executa.json
 
 # 2. 提交并推送上述版本/URL变更,再从同一 commit 打 tag。
 git add app.json executa.json pyproject.toml uv.lock src/truman_director/__init__.py
@@ -41,8 +41,12 @@ gh run watch <run-id> --exit-status
 # 4. 再从 GitHub API 验证 4 tar.gz + 4 sha256 已挂到同一个 Release。
 gh release view truman-director-v0.4.X+1 --json assets --jq '.assets[] | .name'
 
-# 5. 逐个确认 executa.json URL 返回 200,且 Windows entrypoint 带 .exe。
-#    此时仍不要 cut App。
+# 5. 下载四个归档到 executa.json 声明的本地路径，并让 CLI 校验上传计划。
+mkdir -p dist-release/v0.4.X+1
+gh release download truman-director-v0.4.X+1 \
+  --pattern 'tool-*.tar.gz' --dir dist-release/v0.4.X+1
+pnpm exec anna-app executa upload-binaries --dry-run --json
+# 必须看到四个平台；Windows entrypoint 必须带 .exe。此时仍不要 cut App。
 ```
 
 Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`)。从下一版开始，**Executa binaries、SHA256 和 Marketplace screenshots 共用同一个版本 Release**，但截图只在 binary workflow 完成后追加，见 §3。
@@ -90,7 +94,7 @@ Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases
 # 1. 推工作草稿(manifest + bundle)
 pnpm exec anna-app apps push
 
-# 2. 冻结 ExecutaVersion。此刻 executa.json 必须已含四个平台。
+# 2. 直传四个平台并冻结 ExecutaVersion。此刻本地四个 artifact 必须存在。
 pnpm exec anna-app executa publish
 
 # 3. 硬门禁:回读版本,并在真实 Windows Agent 上安装+调用。
@@ -191,6 +195,7 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 | Developer Console 报 `Save failed: manifest does not declare agent.session.auto` | manifest host_api 写法错误(数组而非嵌套对象),缺 agent.session.auto: true | 见 §2 |
 | `desc:` 时 dev harness 跑一会挂 / `Object has no member 'ref'` | bundle SDK 在 harness 进程里调 agent.session.refresh 被拒 | 修了上面之后正常 |
 | Windows Agent 安装报 `No binary available for platform 'windows-x86_64'` | immutable ExecutaVersion 冻结时没有 Windows map；当前 Executa 记录后来补齐也不会修旧快照 | 禁止 App cut/release；补齐四平台后发布新的 Executa patch 版本，Windows 真机安装通过再 cut App |
+| `binary_urls` 当前记录有四平台，但 frozen version 只剩 macOS ARM + Linux | 平台 pull-mirror 冻结路径丢失 Intel macOS/Windows（v0.4.4、首次 v0.4.5 均复现） | 改用 `binary_artifacts`，下载 GitHub Release 四归档后由 CLI 直传；坏快照若未被 AppVersion 引用可 yank 后重建 |
 | Executa Hub Install 明明默认 Local 却请求 Cloud Agent | 页面 `window.defaultAgentClientId` 为空时错误回退 `agents[0]` | 从 Network 核对 `/agents/<client_id>/plugins/reinstall` 的目标；平台修复前不要把按钮提示当成部署成功证据 |
 | BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 官方论坛 2026-08-27 确认修复于 `v1.1.0-beta.144`；升级后重跑原矩阵并在 topic 256 回帖确认 |
 
@@ -205,7 +210,8 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - [ ] `pwsh -File scripts/review_smoke_opencli.ps1` 真实 LLM smoke 输出 PASS、5 张截图且 `rpcErrors=0`
 - [ ] `manifest.json#ui.host_api` 是嵌套对象,含 `agent.session.auto: true`
 - [ ] 版本号四处对齐(executa.json / app.json / pyproject.toml / __init__.py)
-- [ ] `executa.json#binary_urls` 指向最新 tag
+- [ ] `executa.json#binary_artifacts` 声明四个平台，`dist-release/v<version>/` 四归档已下载
+- [ ] `executa upload-binaries --dry-run --json` 显示四个平台和正确 Windows `.exe` entrypoint
 - [ ] GitHub Release 4 tar.gz + 4 sha256 齐全
 - [ ] 冻结后的 ExecutaVersion 已在真实 Windows Agent 安装成功（不能只检查当前 Executa 记录）
 - [ ] Developer working draft 的 `deploy_status=ready`，开镇 + 1 tick 不报 `executa_not_deployed`

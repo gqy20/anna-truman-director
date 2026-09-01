@@ -4,6 +4,7 @@ __pycache__/
 build/
 dist/
 dist-anna/
+dist-release/
 *.spec
 wheels/
 *.egg-info
