@@ -22,7 +22,7 @@ pwsh -File scripts/review_smoke_opencli.ps1 -Port 5181
 脚本按以下顺序执行：
 
 1. 检查 `pnpm`、`opencli` 和目标端口，并运行 `opencli doctor`。
-2. 启动 `anna-app dev --executa dir=.`，等待 harness 监听。
+2. 启动 `pnpm dev`（项目入口自动为 Python bridge/Executa 注入 UTF-8），等待 harness 监听。
 3. 通过 `window.__truman` 审核钩子初始化小镇，选择戏剧开场并等待 3 个真实 LLM tick。
 4. 从 UI 注入导演事件，再推进 1 tick，断言事件出现在字幕中。
 5. 打开居民档案、切换英文 UI，断言英文时间码生效。

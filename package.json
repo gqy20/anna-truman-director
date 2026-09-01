@@ -1,1 +1,1 @@
-{"name":"truman-director-app","private":true,"version":"0.1.0","devDependencies":{"@anna-ai/cli":"^0.1.49"}}
+{"name":"truman-director-app","private":true,"version":"0.1.0","scripts":{"dev":"node scripts/dev.mjs","review:smoke":"pwsh -NoProfile -File scripts/review_smoke_opencli.ps1"},"devDependencies":{"@anna-ai/cli":"^0.1.49"}}

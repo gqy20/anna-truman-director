@@ -241,7 +241,9 @@ try {
     }
 
     Write-Step "Start Anna developer harness on port $Port"
-    $harnessArgs = @('exec', 'anna-app', 'dev', '--port', "$Port", '--executa', 'dir=.')
+    # `pnpm dev` is the single project entrypoint. scripts/dev.mjs injects a
+    # UTF-8 Python environment for the anna-app bridge before it spawns.
+    $harnessArgs = @('run', 'dev', '--', '--port', "$Port")
     if ($MockLlmFixture) {
         $fixturePath = if ([System.IO.Path]::IsPathRooted($MockLlmFixture)) {
             [System.IO.Path]::GetFullPath($MockLlmFixture)
@@ -254,27 +256,14 @@ try {
         }
         $harnessArgs += @('--mock-llm', $fixturePath)
     }
-    # Keep the bridge on UTF-8 even on zh-CN Windows. Without this, a model
-    # response containing U+FFFD can make the Python bridge fail while writing
-    # a JSON frame through the inherited GBK stdout codec.
-    $previousPythonUtf8 = $env:PYTHONUTF8
-    $previousPythonIoEncoding = $env:PYTHONIOENCODING
-    try {
-        $env:PYTHONUTF8 = '1'
-        $env:PYTHONIOENCODING = 'utf-8'
-        $HarnessProcess = Start-Process `
-            -FilePath $PnpmCommand.Source `
-            -ArgumentList $harnessArgs `
-            -WorkingDirectory $ProjectRoot `
-            -RedirectStandardOutput $StdoutLog `
-            -RedirectStandardError $StderrLog `
-            -WindowStyle Hidden `
-            -PassThru
-    }
-    finally {
-        $env:PYTHONUTF8 = $previousPythonUtf8
-        $env:PYTHONIOENCODING = $previousPythonIoEncoding
-    }
+    $HarnessProcess = Start-Process `
+        -FilePath $PnpmCommand.Source `
+        -ArgumentList $harnessArgs `
+        -WorkingDirectory $ProjectRoot `
+        -RedirectStandardOutput $StdoutLog `
+        -RedirectStandardError $StderrLog `
+        -WindowStyle Hidden `
+        -PassThru
 
     $deadline = [DateTime]::UtcNow.AddSeconds(60)
     while (-not (Test-LocalPort $Port)) {

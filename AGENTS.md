@@ -117,7 +117,8 @@ uv sync                                  # 安装依赖（executa-sdk 为本地�
 uv run pytest -q                         # 全量测试（80+）
 uv run ruff format . && uv run ruff check .
 pnpm exec anna-app validate              # manifest 校验（发布前必过）
-pnpm exec anna-app dev --executa dir=.   # dev harness（:5180）。executa 在仓库根，必须显式 --executa dir=.
+pnpm dev                                  # dev harness（:5180）+ bridge/Executa 全进程树默认 UTF-8
+pnpm dev -- --port 5181 --no-watch        # 透传 anna-app dev 参数
 pwsh -File scripts/review_smoke_opencli.ps1  # Windows/OpenCLI 真实 LLM smoke + 5 张审核截图
 env -u MOCK uv run python scripts/local_e2e.py   # 真 LLM 全链路 E2E（需 BYOK 健康 + Agent 在线）
 MOCK=1 uv run python scripts/local_e2e.py        # 离线 mock 回放（协议链路验证）

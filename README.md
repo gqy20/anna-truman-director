@@ -74,7 +74,13 @@ plugin ──▶ engine ──▶ {state, storage}
 ```bash
 uv sync                 # 安装依赖（executa-sdk 是本地路径依赖）
 uv run truman-director  # 启动 stdio 插件（stderr 打印 "ready"）
+pnpm dev                # Anna App harness；项目自动为 bridge/Executa 强制 UTF-8
+# 自定义 harness 参数：pnpm dev -- --port 5181 --no-watch
 ```
+
+Windows 不需要手动设置 `PYTHONUTF8` / `PYTHONIOENCODING`。`scripts/dev.mjs` 会在
+`anna-app dev` 启动 Python bridge 之前为整个子进程树注入 UTF-8；Executa 入口本身还会再次把
+JSON-RPC stdin/stdout 设为 UTF-8，形成双层保证。
 
 ### 测试、格式化、lint
 
