@@ -412,11 +412,17 @@ function renderStageEmpty() {
     `</div>`;
 }
 
+let lastTcKey = null;
 function renderTimecode(world) {
   const tick = String(world.current_tick ?? 0).padStart(3, "0");
+  const key = `${world.day || 1}|${world.world_time}|${tick}`;
+  if (key === lastTcKey) return; // 无变化不重绘,光标动画不重启
+  lastTcKey = key;
+  const rolled = lastTcKey !== null; // 首帧不动画
   $("timecode").innerHTML =
+    (rolled ? `<span class="tc-roll">` : `<span>`) +
     `${t().day(world.day || 1)} <span class="tc-dim">·</span> ${escapeHtml(world.world_time || "--:--")}` +
-    ` <span class="tc-dim">·</span> t${tick}<span class="tc-caret"></span>`;
+    ` <span class="tc-dim">·</span> t${tick}</span><span class="tc-caret"></span>`;
 }
 
 // 建筑剪影(内联 SVG,CSP 'self' 安全;色由 currentColor 控制)
@@ -439,6 +445,9 @@ const ACT_EN = { work: "working", rest: "resting" };
 
 function renderStage(world) {
   const stage = $("map");
+  // 天色时相:按 world_time 给舞台换背景,transition 12s 平滑流动
+  const h = parseInt((world.world_time || "08:00").slice(0, 2), 10) || 0;
+  stage.dataset.phase = h >= 5 && h < 10 ? "dawn" : h >= 10 && h < 16 ? "noon" : h >= 16 && h < 22 ? "dusk" : "night";
   const events = world.events || [];
   const newest = events[events.length - 1];
   const injecting = newest && newest.event_type === "world_change";
@@ -471,7 +480,9 @@ function renderStage(world) {
         const cls = talking.has(id) ? "talk" : a?.current_activity || "idle";
         const act = ACT[a?.current_activity];
         const tip = escapeHtml(agentName(a || { name: id }) + (act ? ` · ${act}` : ""));
-        return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" data-tip="${tip}"></button>`;
+        // 随机相位:每个点的呼吸错开,避免全员同步闪烁
+        const phase = (Array.from(id).reduce((s, c) => s + c.charCodeAt(0), 0) % 45) / 10;
+        return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" data-tip="${tip}" style="animation-delay:-${phase.toFixed(1)}s"></button>`;
       })
       .join("");
     html +=

@@ -44,6 +44,15 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
+/* 无障碍:用户偏好减少动效时,呼吸/脉冲/入场全部关闭,只留瞬时状态变化 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -122,6 +131,12 @@ body::after {
   animation: caret 1.1s steps(1) infinite;
 }
 @keyframes caret { 50% { opacity: 0; } }
+/* 时间码翻动:tick 推进时数字轻轻上滚淡入,像翻页钟 */
+.tc-roll { display: inline-block; animation: tc-roll 0.45s cubic-bezier(0.2, 0.7, 0.3, 1); }
+@keyframes tc-roll {
+  from { opacity: 0; transform: translateY(-0.35em); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* —— 按钮原语 —— */
 button {
@@ -168,8 +183,28 @@ button.lang-btn {
 .stage {
   position: relative;
   overflow: hidden;
+  /* 天色时相:舞台背景随 world_time 切换(8h 清晨/12h 正午/18h 黄昏/夜间),
+     transition 12s 让整点变化像真实天色一样缓慢流动 */
   background:
     linear-gradient(180deg, #070b12 0%, #0b1220 55%, #101a2b 82%, #16233a 100%);
+  transition: background 12s ease;
+}
+/* 四时相:夜间(默认,22-05) / 清晨(05-10) / 正午(10-16) / 黄昏(16-22) */
+.stage[data-phase="night"] {
+  background:
+    linear-gradient(180deg, #070b12 0%, #0b1220 55%, #101a2b 82%, #16233a 100%);
+}
+.stage[data-phase="dawn"] {
+  background:
+    linear-gradient(180deg, #0a1020 0%, #16233f 45%, #2a3d5c 75%, #4a5a78 100%);
+}
+.stage[data-phase="noon"] {
+  background:
+    linear-gradient(180deg, #0e1a30 0%, #1d3252 45%, #33507c 78%, #4d6b95 100%);
+}
+.stage[data-phase="dusk"] {
+  background:
+    linear-gradient(180deg, #0b0f1a 0%, #1c2138 45%, #3d3350 75%, #6b4a3a 100%);
 }
 .stage::after { /* 暗角 */
   content: "";
@@ -317,6 +352,29 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
 .dot.work { background: var(--amber); box-shadow: 0 0 8px rgba(232, 165, 75, 0.7); }
 .dot.rest { background: #6a7f9c; box-shadow: 0 0 6px rgba(106, 127, 156, 0.5); }
 .dot.talk { background: var(--cyan); box-shadow: 0 0 9px rgba(95, 208, 191, 0.8); }
+/* 呼吸:发光缓慢脉动,animation-delay 由 JS 播种随机相位——避免全员同步闪烁的机械感 */
+.dot.idle, .dot.work, .dot.rest {
+  animation: dot-breathe 4.5s ease-in-out infinite;
+}
+.dot.talk { animation: dot-pulse 1.6s ease-in-out infinite; }
+@keyframes dot-breathe {
+  0%, 100% { box-shadow: 0 0 6px rgba(233, 227, 214, 0.4); }
+  50% { box-shadow: 0 0 12px rgba(233, 227, 214, 0.85); }
+}
+.dot.work { animation-name: dot-breathe-warm; }
+@keyframes dot-breathe-warm {
+  0%, 100% { box-shadow: 0 0 6px rgba(232, 165, 75, 0.5); }
+  50% { box-shadow: 0 0 14px rgba(232, 165, 75, 0.95); }
+}
+.dot.rest { animation-name: dot-breathe-rest; animation-duration: 7s; }
+@keyframes dot-breathe-rest {
+  0%, 100% { box-shadow: 0 0 4px rgba(106, 127, 156, 0.35); }
+  50% { box-shadow: 0 0 9px rgba(106, 127, 156, 0.7); }
+}
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(95, 208, 191, 0.6); }
+  50% { transform: scale(1.25); box-shadow: 0 0 16px rgba(95, 208, 191, 1); }
+}
 
 /* —— 悬浮提示(tooltip 原语) —— */
 [data-tip] { position: relative; }
@@ -505,6 +563,18 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   background: var(--amber);
 }
 .chapters-list { display: flex; flex-direction: column; gap: var(--s3); margin-bottom: var(--s4); }
+/* stagger 入场:壹→贰→叁 依次浮现,标题先出,skip 最后 */
+.chapters-title { animation: ch-in 0.7s var(--d2) ease-out backwards; }
+.chapter { animation: ch-in 0.6s ease-out backwards; }
+.chapter:nth-child(1) { animation-delay: 0.25s; }
+.chapter:nth-child(2) { animation-delay: 0.45s; }
+.chapter:nth-child(3) { animation-delay: 0.65s; }
+.chapter:nth-child(4) { animation-delay: 0.85s; }
+.chapters-skip { animation: ch-in 0.6s ease-out 1.1s backwards; }
+@keyframes ch-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .chapter {
   display: grid;
   grid-template-columns: 3.2rem 1fr;
