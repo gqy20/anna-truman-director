@@ -231,6 +231,33 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
 }
 @keyframes sweep { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
 
+/* 舞台天气:world_change 提及雨/雪时,JS 生成粒子层(动画纯 CSS) */
+.weather { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.weather i {
+  position: absolute;
+  top: -8%;
+  display: block;
+  width: 1px;
+  height: 3.2rem;
+  background: linear-gradient(180deg, transparent, rgba(160, 190, 230, 0.45));
+  animation: rain-fall var(--w-dur, 1.1s) linear infinite;
+  animation-delay: var(--w-delay, 0s);
+}
+@keyframes rain-fall {
+  to { transform: translateY(120vh); }
+}
+.weather.snow i {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: rgba(235, 240, 250, 0.7);
+  animation-name: snow-fall;
+  animation-duration: var(--w-dur, 7s);
+}
+@keyframes snow-fall {
+  to { transform: translateY(115vh) translateX(var(--w-drift, 2rem)); }
+}
+
 /* —— 字幕条(lower third):导演注入的临时播报 —— */
 .lower-third {
   position: absolute;
@@ -332,6 +359,31 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
+/* 建筑灯火:剪影上的小窗,夜间/黄昏亮暖光随机闪烁(相位由 JS 播种),
+   清晨/正午熄灭——零成本的生命周期模拟 */
+.win {
+  position: absolute;
+  width: 0.22rem;
+  height: 0.3rem;
+  border-radius: 1px;
+  background: var(--amber);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 6s ease;
+}
+.stage[data-phase="night"] .win,
+.stage[data-phase="dusk"] .win {
+  opacity: 0.9;
+  animation: win-flicker var(--win-dur, 7s) ease-in-out infinite;
+  animation-delay: var(--win-delay, 0s);
+}
+@keyframes win-flicker {
+  0%, 100% { opacity: 0.85; }
+  18% { opacity: 0.25; }
+  22% { opacity: 0.8; }
+  64% { opacity: 0.4; }
+  70% { opacity: 0.9; }
+}
 .bld.arrive .bld-sil { animation: arrive 0.9s ease-out; }
 @keyframes arrive { 0% { filter: drop-shadow(0 0 14px var(--amber)); color: var(--amber); } }
 
@@ -424,6 +476,12 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
   transition: transform var(--d2);
 }
 .story-latest { border-color: var(--line2); }
+/* 纸展开:新故事落地时从顶部展开 + 淡入(只在新故事那帧播,见 story-fresh) */
+.story-fresh { animation: story-unfold 0.9s cubic-bezier(0.2, 0.7, 0.3, 1); transform-origin: top center; }
+@keyframes story-unfold {
+  from { opacity: 0; transform: scaleY(0.72) translateY(-8px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
+}
 .story-day {
   font-family: var(--mono);
   font-size: var(--t-micro);
@@ -474,14 +532,36 @@ body.freeze .panel .story-latest { transform: scale(1.015); }
 }
 /* 选择器必须限定在 .subtitles 内:裸 .sub 会命中空舞台说明文字
    (曾把 tagline 变成 grid 逐字竖排——真机踩过的坑)。 */
-.subtitles .sub { display: grid; grid-template-columns: 2.6rem 1.05rem 1fr; gap: var(--s1); align-items: baseline; font-size: var(--t-meta); padding: 3px 4px; border-radius: var(--r1); animation: sub-in var(--d2) ease-out; }
+.subtitles .sub-h {
+  list-style: none;
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  padding: var(--s2) 0 var(--s1);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s1);
+}
+.subtitles .sub-h:first-child { margin-top: 0; }
+.subtitles .sub { display: grid; grid-template-columns: 1.05rem 1fr; gap: var(--s1); align-items: baseline; font-size: var(--t-meta); padding: 3px 4px; border-radius: var(--r1); animation: sub-in var(--d2) ease-out; }
 @keyframes sub-in { from { opacity: 0; transform: translateY(6px); } }
-.subtitles .sub .t { font-family: var(--mono); font-size: var(--t-micro); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .subtitles .sub .mark { font-size: 0.7rem; text-align: center; }
 .subtitles .sub .txt { color: var(--ink); overflow-wrap: anywhere; }
 .subtitles .sub-hot { color: var(--rose); }
 .subtitles .sub-hot .txt { color: var(--amber-hi); }
-.subtitles .sub-hot .t { color: var(--rose); }
+.subtitles .sub-hot .mark { color: var(--rose); }
+.subtitles .sub-old-h { list-style: none; }
+.subtitles .sub-old { margin: var(--s2) 0; }
+.subtitles .sub-old summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--t-micro);
+  color: var(--ink-dim);
+  padding: var(--s1) 0;
+}
+.subtitles .sub-old summary::-webkit-details-marker { display: none; }
+.subtitles .sub-old summary::before { content: "▸ "; }
+.subtitles .sub-old[open] summary::before { content: "▾ "; }
 
 /* ═══ 底栏:导演指令 ═══════════════════════════════════════════════ */
 

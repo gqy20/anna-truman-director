@@ -451,6 +451,14 @@ function renderStage(world) {
   const events = world.events || [];
   const newest = events[events.length - 1];
   const injecting = newest && newest.event_type === "world_change";
+  // 天气判定:注入落账后决策事件会盖到它上面,所以扫最近 4 条找带
+  // 雨/雪关键词的 world_change——天气要"下满一阵",不是闪一下
+  const recent = events.slice(-4);
+  const storm = recent.find((e) => {
+    if (e.event_type !== "world_change") return false;
+    const w = `${e.description || ""}${e.reason || ""}`;
+    return /雨|rain|storm|雷|暴雨/i.test(w) || /雪|snow/i.test(w);
+  });
 
   // 近期动态(只取快照尾部,纯派生):谁刚到达、谁在交谈
   const tail = events.slice(-8);
@@ -485,12 +493,25 @@ function renderStage(world) {
         return `<button class="dot ${cls}" data-agent-id="${escapeHtml(id)}" data-tip="${tip}" style="animation-delay:-${phase.toFixed(1)}s"></button>`;
       })
       .join("");
+    // 建筑灯火:2-3 扇小窗,位置/闪烁周期按楼名哈希——重渲染稳定不跳变
+    const h = (s) => Array.from(s).reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 7);
+    const seed = h(loc.id);
+    const wins = Array.from({ length: 2 + (seed % 2) })
+      .map((_, i) => {
+        const wx = 30 + (((seed >> (i * 3)) % 5) * 10); // 30-70%
+        const wy = 22 + (((seed >> (i * 5)) % 4) * 12); // 22-58%
+        const dur = 5 + ((seed >> (i * 7)) % 6); // 5-10s
+        const delay = -(((seed >> (i * 11)) % 90) / 10);
+        return `<i class="win" style="left:${wx}%;top:${wy}%;--win-dur:${dur}s;--win-delay:${delay.toFixed(1)}s"></i>`;
+      })
+      .join("");
     html +=
       `<div class="bld ${dots ? "lit" : ""} ${arrivals.has(loc.id) ? "arrive" : ""}" ` +
       `style="left:${loc.x}%;top:${loc.y}%">` +
       `<svg class="bld-sil" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">${
         SILS[loc.type] || SILS.street
       }</svg>` +
+      wins +
       `<div class="dots">${dots}</div>` +
       `<span class="bld-name">${escapeHtml(locName(loc))}</span>` +
       `</div>`;
@@ -502,7 +523,24 @@ function renderStage(world) {
   } else {
     stage.classList.remove("sweep");
   }
+  // 天气层:最近有带雨/雪的注入就挂粒子层(独立于 sweep 生命周期)。
+  // 必须在 innerHTML 赋值之后再插入——否则被整体覆写抹掉。
+  const wtext = storm ? `${storm.description || ""}${storm.reason || ""}` : "";
+  const kind = /雨|rain|storm|雷|暴雨/i.test(wtext) ? "rain" : /雪|snow/i.test(wtext) ? "snow" : null;
+  if (!kind) stage.querySelector(".weather")?.remove();
   stage.innerHTML = html;
+  if (kind && !stage.querySelector(`.weather.${kind}`)) {
+    const drops = Array.from({ length: kind === "rain" ? 34 : 22 })
+      .map((_, i) => {
+        const left = (i * 97) % 100; // 伪随机但均匀铺开
+        const dur = kind === "rain" ? 0.8 + ((i * 13) % 5) / 10 : 6 + ((i * 7) % 5);
+        const delay = -(((i * 31) % 100) / 10);
+        const drift = kind === "snow" ? `${(((i * 17) % 8) - 4).toFixed(1)}rem` : "";
+        return `<i style="left:${left}%;--w-dur:${dur}s;--w-delay:${delay.toFixed(1)}s;--w-drift:${drift}"></i>`;
+      })
+      .join("");
+    stage.insertAdjacentHTML("beforeend", `<div class="weather ${kind}">${drops}</div>`);
+  }
 }
 
 function renderStories(world) {
@@ -514,11 +552,13 @@ function renderStories(world) {
   }
   const latest = stories[stories.length - 1];
   const older = stories.slice(0, -1);
+  // 纸展开:新故事落地的这一帧才带入场动画(旧故事重渲染不重播)
+  const fresh = lastStoryDay !== null && latest.day !== lastStoryDay;
   el.innerHTML =
-    `<article class="story story-latest">` +
+    `<article class="story story-latest${fresh ? " story-fresh" : ""}">` +
     `<div class="story-day">${t().day(latest.day)}</div>` +
     `<p class="story-text">${escapeHtml(latest.story)}</p>` +
-    (latest.cliffhanger ? `<p class="story-cliff">${escapeHtml(latest.cliffhanger)}</p>` : "") +
+    (latest.cliffhanger ? `<p class="story-cliff"${fresh ? ' data-type="1"' : ""}>${fresh ? "" : escapeHtml(latest.cliffhanger)}</p>` : "") +
     `</article>` +
     (older.length
       ? `<details class="story-old"><summary>${t().prevDays(older.length)}</summary>` +
@@ -537,10 +577,24 @@ function renderStories(world) {
         `</details>`
       : "");
 
-  // cliffhanger 定格:新的一天写完时,整窗片刻凝滞(§3.6 戏点)。
-  if (lastStoryDay !== null && latest.day !== lastStoryDay) {
+  // cliffhanger 定格 + 打字机:新的一天写完时,整窗片刻凝滞(§3.6 戏点),
+  // cliffhanger 逐字浮现——悬念需要被"念"出来。
+  if (fresh) {
     document.body.classList.add("freeze");
     setTimeout(() => document.body.classList.remove("freeze"), 1400);
+    const cliffEl = el.querySelector('.story-cliff[data-type="1"]');
+    if (cliffEl && latest.cliffhanger) {
+      const full = latest.cliffhanger;
+      let i = 0;
+      cliffEl.textContent = "⏳ ";
+      const timer = setInterval(() => {
+        cliffEl.textContent = "⏳ " + full.slice(0, ++i);
+        if (i >= full.length) {
+          clearInterval(timer);
+          cliffEl.removeAttribute("data-type");
+        }
+      }, 55);
+    }
   }
   lastStoryDay = latest.day;
 }
@@ -552,17 +606,41 @@ const SUB_MARK = {
 
 function renderSubtitles(world) {
   const tl = $("timeline");
-  const events = [...(world.events || [])].reverse().slice(0, 40);
-  tl.innerHTML = events
-    .map((e) => {
-      const hot = e.event_type === "world_change" || (e.importance ?? 0) >= 0.8;
-      return (
-        `<li class="sub ${hot ? "sub-hot" : ""}">` +
-        `<span class="t">t${e.tick}</span>` +
-        `<span class="mark">${SUB_MARK[e.event_type] ?? "·"}</span>` +
-        `<span class="txt">${escapeHtml(e.description || e.reason || "")}</span></li>`
-      );
-    })
+  const events = [...(world.events || [])].reverse().slice(0, 60);
+  // 按 tick 分组(新→旧):每组一次时刻头,组内不重复 tXXX;
+  // 最新 3 组平铺,更早的收进「更早」折叠,长跑不刷屏。
+  const tickMin = world.tick_minutes || 5;
+  const [ch, cm] = (world.world_time || "00:00").split(":").map(Number);
+  const timeOf = (tick) => {
+    const total = ((ch * 60 + cm) - (world.current_tick - tick) * tickMin) % 1440;
+    const hh = String(Math.floor((total + 1440) % 1440 / 60)).padStart(2, "0");
+    const mm = String(total % 60).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+  const groups = [];
+  for (const e of events) {
+    const last = groups[groups.length - 1];
+    if (last && last.tick === e.tick) last.items.push(e);
+    else groups.push({ tick: e.tick, items: [e] });
+  }
+  const head = (tick) =>
+    `<li class="sub-h">t${tick} <span class="tc-dim">·</span> ${timeOf(tick)}</li>`;
+  const item = (e) => {
+    const hot = e.event_type === "world_change" || (e.importance ?? 0) >= 0.8;
+    return (
+      `<li class="sub ${hot ? "sub-hot" : ""}">` +
+      `<span class="mark">${SUB_MARK[e.event_type] ?? "·"}</span>` +
+      `<span class="txt">${escapeHtml(e.description || e.reason || "")}</span></li>`
+    );
+  };
+  tl.innerHTML = groups
+    .map((g, i) =>
+      i < 3
+        ? head(g.tick) + g.items.map(item).join("")
+        : (i === 3 ? `<li class="sub-old-h"><details class="sub-old"><summary>${t().prevDays(groups.length - 3)}</summary>` : "") +
+          head(g.tick) + g.items.map(item).join("") +
+          (i === groups.length - 1 ? "</details></li>" : ""),
+    )
     .join("");
 }
 
