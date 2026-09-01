@@ -104,9 +104,16 @@ pnpm exec anna-app apps submit-review
 pnpm exec anna-app apps release 0.4.X+1
 ```
 
-## 3. Marketplace 列表字段(Developer Console「基本信息」)
+## 3. Marketplace 列表字段
 
-manifest 没有 `homepage_url` / `screenshots` 字段——**这些只在 Developer Console 表单里配,不进 git**。
+`@anna-ai/cli` 0.1.49 已支持从 `app.json` 同步列表字段。把 `homepage_url`、`support_url`、`privacy_url`、`cover_url` 和 `screenshots` 写入 git，然后执行：
+
+```bash
+pnpm exec anna-app apps sync-meta --dry-run --json
+pnpm exec anna-app apps sync-meta --json
+```
+
+dry-run 必须先确认 app_id、slug 和全部 URL 正确。Developer Console 表单只作为 CLI PATCH 失败时的回退路径。
 
 | 字段 | 我们的填法 | 备注 |
 |---|---|---|
@@ -130,9 +137,9 @@ gh release create <screenshots-tag> \
 
 URL 形态:`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`
 
-### 用 opencli 填表单
+### Developer Console 回退
 
-字段名是 `homepage_url`(不是 home_url)、`cover_url`、`screenshots`(textarea,每行一个 URL)。在 Developer Console 表单里用 opencli eval 程序化填入并点保存(无需手工操作):
+旧的 `/developer?app=82&tab=basic` 路由已在 2026-09 重定向；优先使用上面的 `apps sync-meta`。如果新版 Console 重新提供表单，字段名仍是 `homepage_url`(不是 home_url)、`cover_url`、`screenshots`。
 
 ```bash
 opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic"
@@ -190,7 +197,9 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - 平台状态仍为 `pending_review`；线上 latest 是 v0.3.3，不能用当前 `main` 覆盖审核快照
 - 仓库已提交:`fix(manifest): host_api 嵌套对象 + agent.session.auto: true` (38a3435),`docs: PRIVACY.md + ignore` (af9ae25)
 - Developer Console「基本信息」表单已保存(homepage/support/privacy/cover/screenshot URL 全部填好)
-- v0.4.3 截图 Release 有 4 张 PNG，但 2026-09-01 后 `main` 又完成三轮 bundle 打磨；下次提审前应重拍，避免商店图与实际 UI 不一致
+- v0.4.4 源码已提交并推送；tag `truman-director-v0.4.4` 的四平台 binary + SHA256 Release 已成功
+- `executa.json#binary_urls` 已切换到 v0.4.4 Release
+- 截图 Release `truman-director-screenshots-v0.4.4` 已发布 4 张 PNG；app 82 的 cover/homepage/support/privacy/screenshots 已 PATCH 并 GET 回读确认
 - 2026-09-01 本地验证：90 tests、Ruff、manifest、Windows UTF-8 mock E2E 全绿；harness 完成真实 LLM 开镇、事件注入、定向居民事件、XSS inert-markup、3 tick 与中英切换
-- 当前 `main` 包含 v0.4.2 tag 之后的引擎改动，不能继续复用 v0.4.2 binary；下一版需升版并重新构建四平台资产
-- 等 v0.4.3 审核结束 → 补 TC-04 / TC-05 / Security 证据 → 以新版本重新 cut / submit-review
+- TC-01～TC-05 + Security 本地证据已补齐
+- 下一步：`apps push` → `executa publish` → `apps cut 0.4.4`；等 v0.4.3 审核结束后再 `submit-review`
