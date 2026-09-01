@@ -162,7 +162,7 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 | `apps cut` 报 `Version X.Y.Z already published with different content` | `apps push` 对 bundled executa 是 no-freeze | 先跑 `executa publish` 显式冻结工具版本 |
 | `apps release` 报 `app status is archived` | App 在归档状态 | `apps unarchive <slug> --yes` |
 | `apps release` 报 `app status is draft` | App 从未过审 | `apps submit-review` |
-| `apps submit-review` 报 `App 状态不允许提交审核: pending_review` | 上一轮审核未结束 | **必须等审核员走完一轮**(reject/approve),平台不允许覆盖提交 |
+| `apps submit-review` 报 `App 状态不允许提交审核: pending_review` | 上一轮审核未结束 | 不要重复 submit。2026-09-01 实测：在 pending_review 下成功 cut 新版本后，服务器自动把现有审核指针更新到新 cut；必须用 `apps status` 回读确认 |
 | Developer Console 报 `Save failed: manifest does not declare agent.session.auto` | manifest host_api 写法错误(数组而非嵌套对象),缺 agent.session.auto: true | 见 §2 |
 | `desc:` 时 dev harness 跑一会挂 / `Object has no member 'ref'` | bundle SDK 在 harness 进程里调 agent.session.refresh 被拒 | 修了上面之后正常 |
 | BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 官方论坛 2026-08-27 确认修复于 `v1.1.0-beta.144`；升级后重跑原矩阵并在 topic 256 回帖确认 |
@@ -193,8 +193,9 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 
 ## 7. 当前进度(2026-09-01)
 
-- v0.4.3 已 cut(version_id=521,锁定 executable v0.4.2)
-- 平台状态仍为 `pending_review`；线上 latest 是 v0.3.3，不能用当前 `main` 覆盖审核快照
+- 历史 v0.4.3 已 cut(version_id=521,锁定 executable v0.4.2)
+- v0.4.4 已 cut(version_id=623)，冻结 executa_version=427(v0.4.4)
+- 平台状态仍为 `pending_review`，但 `in review` 已由服务器自动更新为 v0.4.4；线上 latest 仍是 v0.3.3
 - 仓库已提交:`fix(manifest): host_api 嵌套对象 + agent.session.auto: true` (38a3435),`docs: PRIVACY.md + ignore` (af9ae25)
 - Developer Console「基本信息」表单已保存(homepage/support/privacy/cover/screenshot URL 全部填好)
 - v0.4.4 源码已提交并推送；tag `truman-director-v0.4.4` 的四平台 binary + SHA256 Release 已成功
@@ -202,4 +203,5 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - 截图 Release `truman-director-screenshots-v0.4.4` 已发布 4 张 PNG；app 82 的 cover/homepage/support/privacy/screenshots 已 PATCH 并 GET 回读确认
 - 2026-09-01 本地验证：90 tests、Ruff、manifest、Windows UTF-8 mock E2E 全绿；harness 完成真实 LLM 开镇、事件注入、定向居民事件、XSS inert-markup、3 tick 与中英切换
 - TC-01～TC-05 + Security 本地证据已补齐
-- 下一步：`apps push` → `executa publish` → `apps cut 0.4.4`；等 v0.4.3 审核结束后再 `submit-review`
+- `apps push` 已更新 working draft rev 6；`executa publish` 与 `apps cut 0.4.4` 均成功
+- 下一步：等待审核团队处理 v0.4.4；不要重复 `submit-review`，不要在批准前 `release`

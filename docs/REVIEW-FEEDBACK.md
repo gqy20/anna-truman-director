@@ -7,7 +7,7 @@
 - 2026-08-19，Anna Developer Team 对 **World Director (Local) v0.3.3** 给出 `Changes Required`。
 - 原始附件保存在仓库外的 `../review/review_3.3/`，包括中英文 Marketplace Review 和 Functional Test Evidence。
 - 审核时 App 安装、Related Tools 安装和 Tool bundling 已通过；失败集中在 frontend / Tool execution / permission，导致 TC-01～TC-05 与 Security 全部未验证。
-- 平台当前状态（2026-09-01 CLI 实查）：线上 latest v0.3.3，v0.4.3（version_id=521）仍为 `pending_review`。
+- 平台当前状态（2026-09-01 CLI 实查）：线上 latest v0.3.3；v0.4.4（version_id=623、executa_version=427）为 `pending_review` 的当前审核版本。
 
 ## 2. 审核问题闭环矩阵
 
@@ -83,7 +83,7 @@
 
 ## 6. 当前不能宣称的事项
 
-- v0.4.3 尚未获得 Marketplace 审核通过。
-- 当前 `main` 不是平台正在审核的 v0.4.3 冻结快照。
+- v0.4.4 尚未获得 Marketplace 审核通过。
+- 当前审核已指向 v0.4.4 immutable cut；后续 main 改动仍不会自动进入该快照。
 - TC-04 / TC-05 / Security 已本地通过，但尚未由平台 QA 复核。
 - BYOK 官方修复尚未在论坛由本账号回帖确认。
