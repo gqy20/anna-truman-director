@@ -15,7 +15,6 @@ const EXECUTA_TOOL_ID =
   "tool-qingyu_ge-anna-truman-director-sxah66uc";
 
 const SCENARIO = "cafe_town";
-const WORLD_KEY = "truman:run:world";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -411,7 +410,7 @@ let lastWorld = null; // hover 浮卡的数据源(refresh 时更新)
 
 async function refresh() {
   if (!anna) return false;
-  const r = await anna.storage.get({ key: WORLD_KEY });
+  const r = await invokeWorld({ action: "get_snapshot" });
   const payload = r?.result ?? r;
   const world = payload?.value ?? null;
   if (!world) {

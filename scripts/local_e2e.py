@@ -113,8 +113,11 @@ SPEC = {
 class Host:
     def __init__(self):
         env = {**os.environ, "PYTHONPATH": "src", "TRUMAN_LOG_LEVEL": "INFO"}
+        binary = os.environ.get("TRUMAN_E2E_BINARY")
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "truman_director.plugin"],
+            [os.path.abspath(binary)]
+            if binary
+            else [sys.executable, "-m", "truman_director.plugin"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -157,6 +160,8 @@ class Host:
     def _handle_reverse(self, msg: dict) -> None:
         method, rid, params = msg["method"], msg.get("id"), msg.get("params") or {}
         try:
+            if method.startswith("storage/") and params.get("scope") != "tool":
+                raise RuntimeError("World storage requires explicit tool scope")
             if method == "storage/get":
                 key = params["key"]
                 rec = self.kv.get(key)
@@ -242,28 +247,84 @@ class Host:
             "max_tokens": params.get("maxTokens", 1024),
         }
         if params.get("systemPrompt"):
-            body["system"] = params["systemPrompt"]
+            # Live complete endpoint ignores the legacy top-level `system`.
+            # Keep the instruction in the supported messages conversation.
+            body["messages"].insert(0, {"role": "system", "content": params["systemPrompt"]})
         if params.get("responseFormat"):
             body["response_format"] = params["responseFormat"]
+        print(
+            "  [sampling request] "
+            f"max_tokens={body['max_tokens']} system_chars={len(params.get('systemPrompt', ''))} "
+            f"schema={body.get('response_format', {}).get('json_schema', {}).get('name')}"
+        )
         raw = _http_post_json(
             f"{HOST}/api/v1/copilot/app/complete",
             body,
             headers={"authorization": f"Bearer {self._mint()}"},
             timeout=90,
         )
+        content = raw.get("content")
+        visible = (
+            content.get("text", "")
+            if isinstance(content, dict)
+            else raw.get("text") or content or raw.get("message") or ""
+        )
+        if isinstance(visible, str):
+            closed = visible.rfind("</think>")
+            if os.environ.get("TRUMAN_E2E_INSPECT_JSON") == "1":
+                from truman_director.engine import _extract_json
+
+                parsed, parse_path = _extract_json(visible)
+                answer = visible[closed + 8 :] if closed >= 0 else visible
+                print(
+                    "  [output diagnostic] "
+                    + json.dumps(
+                        {
+                            "parse_path": parse_path,
+                            "type": type(parsed).__name__,
+                            "fields": {k: type(v).__name__ for k, v in parsed.items()}
+                            if isinstance(parsed, dict)
+                            else None,
+                            "answer": answer
+                            if "<think>" not in answer
+                            else "[incomplete reasoning omitted]",
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            print(
+                "  [sampling response] "
+                + json.dumps(
+                    {
+                        "fields": sorted(raw),
+                        "model": raw.get("model"),
+                        "stop_reason": raw.get("stop_reason", raw.get("stopReason")),
+                        "usage": raw.get("usage"),
+                        "chars": len(visible),
+                        "think_open": "<think>" in visible,
+                        "think_closed": closed >= 0,
+                        "after_think_chars": len(visible[closed + 8 :].strip())
+                        if closed >= 0
+                        else None,
+                    },
+                    ensure_ascii=False,
+                )
+            )
         # normalise (same coercion as the CLI bridge)
         if raw.get("role") == "assistant" and isinstance(raw.get("content"), dict):
             return raw
         text = (
             raw.get("text")
             or (raw.get("content") if isinstance(raw.get("content"), str) else "")
+            or (raw.get("message") if isinstance(raw.get("message"), str) else "")
             or ""
         )
         return {
             "role": "assistant",
             "content": {"type": "text", "text": text},
             "model": raw.get("model", "unknown"),
-            "stopReason": raw.get("stop_reason", "endTurn"),
+            "stopReason": raw.get("stop_reason", raw.get("stopReason", "endTurn")),
+            "usage": raw.get("usage"),
         }
 
     def invoke_world(self, args: dict) -> dict:
@@ -335,6 +396,8 @@ def main() -> None:
         )
 
         snap = host.kv.get("truman:run:world")
+        assert snap is not None
+        assert host.invoke_world({"action": "get_snapshot"}) == {"value": snap}
         size = len(json.dumps(snap, ensure_ascii=False).encode())
         print(f"[7] snapshot size = {size}B (KV limit 64KB)")
         mode = "mock LLM" if MOCK else "真 LLM(staging)"

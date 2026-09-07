@@ -31,8 +31,8 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 改动代码前先逐条对照。任何与下列原则冲突的「优化」都不算优化。
 
 1. **模型是唯一决策者** — 不引入启发式、规则引擎、行为树、概率表。居民动作只能来自 `engine.decide`。bundle/plugin **绝不**替模型决策。解析层适配（`_extract_json` 的 think/fence/brace 剥离）与纠正式重试（`_sample_json`）是**解析**不是决策，不触犯本条。
-2. **单一真相来源** — `WorldState`（`state.py`）与 APS KV `truman:run:world` 是同一份序列化的两端。不在别处维护影子状态；bundle 渲染直接读 storage 快照（`refresh()`）。
-3. **单一编排入口** — plugin 的 `world` 工具是**唯一**推进世界的入口（8 个 action：`init`/`reset`/`tick`/`inject_event`/`list_scenarios`/`get_agent`/`get_timeline`/`get_story`）。`engine.tick`：推进时钟 → 排空导演注入（先于决策）→ 决策 → 应用/留痕 → 持久化 →（跨午夜）日终 narrate。
+2. **单一真相来源** — `WorldState`（`state.py`）与 APS KV `scope=tool`、key `truman:run:world` 是同一份序列化的两端。不在别处维护影子状态；bundle `refresh()` 经只读 `get_snapshot` 读取已保存快照。插件不能访问 App 存储范围；不得退回 `anna.storage.get` 默认 App 范围。
+3. **单一编排入口** — plugin 的 `world` 工具是**唯一**推进世界的入口（9 个 action：`init`/`reset`/`tick`/`inject_event`/`list_scenarios`/`get_agent`/`get_timeline`/`get_story`/`get_snapshot`）。`engine.tick`：推进时钟 → 排空导演注入（先于决策）→ 决策 → 应用/留痕 → 持久化 →（跨午夜）日终 narrate。
 4. **失败要响亮** — 解析失败、反向 RPC 失败必须抛出冒泡；`_sample_json` 的重试（1 次，带模型自己的坏输出回炉）耗尽后响亮失败。**绝不**静默吞错、**绝不**降级默认行为。
 5. **不玩并发花样** — 主线程 asyncio loop 串行处理 invoke；tick 串行。引擎就是「推进 → 问模型 → 应用 → 存」。
 
@@ -57,7 +57,7 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 
 ```
 bundle/app.js → anna.tools.invoke → plugin.world → engine.tick → {sampling.createMessage, storage.set}
-bundle/app.js → anna.storage.get（渲染读取 plugin 写的同一 KV key）
+bundle/app.js → world/get_snapshot → storage.get(scope=tool)（读取已保存快照）
 ```
 
 ## i18n 约定（zh/en）

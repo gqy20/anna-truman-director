@@ -1,5 +1,6 @@
 {
   "schema": 2,
+  "host_capabilities": ["aps.kv"],
   "permissions": [
     "tools.invoke",
     "llm.complete",

@@ -34,13 +34,15 @@ class FakeStorage:
     def __init__(self):
         self.data: dict[str, dict] = {}
 
-    async def get(self, key, *, scope="app", **kwargs):
+    async def get(self, key, *, scope=None, **kwargs):
+        assert scope == "tool", "World persistence must explicitly use tool scope"
         rec = self.data.get(key)
         if rec is None:
             return {"value": None, "exists": False, "etag": None}
         return {"value": rec["value"], "exists": True, "etag": rec.get("etag")}
 
-    async def set(self, key, value, *, scope="app", **kwargs):
+    async def set(self, key, value, *, scope=None, **kwargs):
+        assert scope == "tool", "World persistence must explicitly use tool scope"
         self.data[key] = {"value": value, "etag": "etag-1"}
         return {"etag": "etag-1", "generation": 1, "size_bytes": 0}
 

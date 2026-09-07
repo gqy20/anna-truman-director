@@ -4,6 +4,17 @@
 
 ## 本地打包(单平台)
 
+测试已构建的可执行文件（不再只测源码）：PowerShell 设置
+`$env:TRUMAN_E2E_BINARY='<exe 的绝对路径>'`，然后运行
+`uv run python scripts/local_e2e.py`。设置 `MOCK=1` 为离线模型回放；
+不设置则调用平台开发者模型接口。两种模式的 APS 都是内存替身，
+严格要求 `scope=tool`，不能代替实际 Agent、平台 APS 和 App UI 验收。
+
+`TRUMAN_E2E_INSPECT_JSON=1` 可临时打印正式答案与解析字段（默认关闭，
+仅用于合成测试数据，避免将私人世界内容写入日志）。真实模型驱动将
+system prompt 放入 `messages` 的 `system` 消息：2026-09-07 对照测试发现
+complete 接口未应用旧的顶层 `system` 字段，不能沿用该映射判断模型能力。
+
 ```bash
 bash scripts/package_binary.sh     # → dist-anna/<tool_id>-<platform>.tar.gz
 ```

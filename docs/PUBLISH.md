@@ -1,5 +1,7 @@
 # 发布流程(World Director / Local)
 
+> **0.4.7 候选状态（2026-09-07）**：已修复插件工具范围存储、前端 get_snapshot 读取、模型输出形状校验，以及本地 E2E 的 system 消息映射。104 项测试及一轮 Windows 二进制真实模型 E2E 通过（存储仍为测试替身）。真实 Agent 已加载 0.4.7，但诊断 App 工作草稿首个调用出现 70 秒超时，原因未定。四平台构建/上传冻结、目标版本安装、真实 APS 和 UI 验收仍是提审门禁；GitHub Release 不代表 Marketplace 审核通过。
+
 > **2026-09-07 复核更正（优先于下文历史记录）**：官方 topic 280/2 说明 reinstall 使用已安装 App 的 Executa 冻结引用，因此“必须安装成功才允许 cut”会形成循环依赖；应先核对 Executa 快照并 cut，再安装该 cut 版本并执行真机门禁，门禁通过后才提审/上架。本次已成功 cut App v0.4.5（id=679），锁定 Executa v0.4.5（id=433）。但 Developer Console Install 实际仍返回 `installed_version=0.3.3`、空 Executa 列表、`deployment=null`，不能视为目标版本安装通过。App 当前 `rejected`、无审核候选、latest 仍 v0.3.3，尚未重新提审。此前“必须等平台修复才 cut”及 `pending_review` 记录已过时；“cut 会更新在审候选”也不能作为通用规则。完整证据见 `../../mail/2026-09-07-cut-install-verification.md`；下一步是确认未发布 cut 版本的开发者安装入口，不能通过直接 release 绕过运行验证。
 
 实战沉淀:v0.4.3 提交审核被拒一次,定位 manifest host_api 根因后修复,cut v0.4.3 重新提审(2026-08)。下面的步骤按本次实际跑通过的顺序整理。
@@ -250,3 +252,9 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - 首次 v0.4.5 pull-mirror 快照(id=432)仍丢 Windows/Intel macOS，确认无 AppVersion 引用后已 yank；随后用 `binary_artifacts` 直传四平台并重建 v0.4.5(id=433, `binary_source=direct-upload`)
 - 当前 Executa/UserExecuta 均回读四平台，且刷新安装记录(7404→10649)后授权已恢复、credentials 为空；但 Local Windows reinstall 后端仍错误返回只有 `darwin-arm64, linux-x86_64`
 - 因真机门禁失败，App v0.4.5 **尚未 cut**；审核候选仍是 v0.4.4，线上 latest 仍是 v0.3.3。下一步必须由平台修复 `/agents/{client_id}/plugins/reinstall` 的平台解析后再重试，禁止绕过并 cut/release
+# 存储修正发布门禁（2026-09-07）
+
+0.4.6 真机开镇暴露 `forbidden_scope`：插件不能使用 App 存储范围。
+后续补丁使用工具范围持久化和 `get_snapshot` 前端读取；不得覆盖已冻结 0.4.6。
+发布前必须验证：空存储展示开镇 → init → get_snapshot → 真模型 tick → 关闭重开恢复同一快照；
+还需检查权限拒绝明确显示错误。单元测试和 MOCK E2E 不能替代该平台验证。

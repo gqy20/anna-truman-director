@@ -1,6 +1,6 @@
 # Privacy Policy — World Director (Local)
 
-**Last updated:** 2026-08-19
+**Last updated:** 2026-09-07
 
 World Director (Local) is an open-source Anna App that simulates a small AI
 town in your local Anna Agent environment. This page explains what data
@@ -13,10 +13,12 @@ remote server of its own. The data it touches falls into three categories:
 
 1. **World state** — agents, locations, events, and the day-story history.
    Stored as a single APS KV entry (`truman:run:world`) on the Anna
-   platform, scoped to this App and your account.
+   platform, scoped to the Truman Director Executa and your account. Apps using
+   that same Executa share the saved world; the UI reads it through the tool.
 2. **Director injections** — short text strings you type into the input
-   bar at the bottom of the App. Saved as pending injection entries in
-   the same KV record and applied to the world state on the next tick.
+    bar at the bottom of the App. Queued in the running plugin's memory and
+    applied on the next tick; applied events are included in the saved world.
+    Pending injections do not survive a plugin restart.
 3. **Your local model key** — if you connect a Bring-Your-Own-Key
    provider on the Anna LLM settings page, the App's `decide` and
    `narrate` calls are routed to that key. The App does not store, log,

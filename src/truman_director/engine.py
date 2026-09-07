@@ -162,6 +162,8 @@ def _extract_json(text: str) -> tuple[object, str]:
     making — red line 1 untouched.
     """
     if "<think>" in text:
+        if text.rfind("<think>") > text.rfind("</think>"):
+            return None, "incomplete_think"
         text = text.rsplit("</think>", 1)[-1]
     text = text.strip()
     if text.startswith("```"):
@@ -245,6 +247,33 @@ async def _sample_json(
     return None, "unparseable", "\n-----\n".join(raw_parts), "retry_exhausted"
 
 
+def _valid_decision(data: object) -> bool:
+    if isinstance(data, dict):
+        if set(data) != {"events"}:
+            return False
+        data = data["events"]
+    return isinstance(data, list) and all(
+        isinstance(event, dict)
+        and set(event) == {"agent_id", "action", "target", "reason"}
+        and isinstance(event["agent_id"], str)
+        and bool(event["agent_id"].strip())
+        and isinstance(event["action"], str)
+        and event["action"] in ("move", "rest", "work", "talk")
+        and (event["target"] is None or isinstance(event["target"], str))
+        and isinstance(event["reason"], str)
+        and bool(event["reason"].strip())
+        for event in data
+    )
+
+
+def _valid_narrative(data: object) -> bool:
+    return (
+        isinstance(data, dict)
+        and set(data) == {"story", "cliffhanger"}
+        and all(isinstance(value, str) and value.strip() for value in data.values())
+    )
+
+
 async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     """Ask the model what every agent should do this tick. Returns the raw events list."""
     payload = json.dumps(world_view, ensure_ascii=False)
@@ -254,6 +283,8 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
         system=system,
         user_text=payload,
         max_tokens=MAX_TOKENS,
+        validate=_valid_decision,
+        shape_hint="events must contain agent_id, action, target, reason with the declared types",
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -275,7 +306,7 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
     # so every call logs its I/O sizes and the parse path taken. The bare-array
     # shape is the known host quirk — WARNING makes its frequency observable.
     if isinstance(data, dict):
-        events = data.get("events", [])
+        events = data["events"]
         _log.info(
             "decide tick=%s prompt=%dB resp=%dB shape=dict events=%d parse=%s",
             world_view.get("current_tick"),
@@ -295,7 +326,7 @@ async def decide(sampling: SamplingClient, world_view: dict) -> list[dict]:
             parse_path,
         )
         return data
-    return []
+    raise ValueError("decide returned an invalid decision shape")
 
 
 # ── narrator: the day-close cognition call ─────────────────────────────
@@ -339,7 +370,7 @@ async def narrate(
                 "schema": NARRATIVE_SCHEMA,
             },
         },
-        validate=lambda d: isinstance(d, dict) and "story" in d,
+        validate=_valid_narrative,
         shape_hint='the object must be {"story": "...", "cliffhanger": "..."}',
     )
     if not isinstance(data, dict) or "story" not in data:
@@ -355,7 +386,7 @@ async def narrate(
         len(data.get("cliffhanger", "")),
         parse_path,
     )
-    return {"story": data["story"], "cliffhanger": data.get("cliffhanger", "")}
+    return {"story": data["story"], "cliffhanger": data["cliffhanger"]}
 
 
 async def day_close(world: WorldState, sampling: SamplingClient, tick_from: int) -> dict:

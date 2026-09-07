@@ -13,13 +13,14 @@ import time
 from executa_sdk import StorageClient
 
 KEY = "truman:run:world"
+SCOPE = "tool"  # Plugin tokens cannot access App-side scope="app".
 
 _log = logging.getLogger("truman.storage")
 
 
 async def load(storage: StorageClient) -> dict | None:
     t0 = time.monotonic()
-    r = await storage.get(KEY, scope="app")
+    r = await storage.get(KEY, scope=SCOPE)
     dur = (time.monotonic() - t0) * 1000
     if not r.get("exists"):
         _log.info("load miss key=%s dur=%.0fms", KEY, dur)
@@ -30,7 +31,7 @@ async def load(storage: StorageClient) -> dict | None:
 
 async def save(storage: StorageClient, snapshot: dict) -> None:
     t0 = time.monotonic()
-    await storage.set(KEY, snapshot, scope="app")
+    await storage.set(KEY, snapshot, scope=SCOPE)
     # Size doubles as the snapshot-budget monitor (DESIGN §13.2): the APS KV
     # value ceiling is 64KB, so watch this number as memories/stories grow.
     _log.info(

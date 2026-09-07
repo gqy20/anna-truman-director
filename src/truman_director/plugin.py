@@ -57,14 +57,14 @@ MANIFEST: dict[str, Any] = {
     "author": "Anna Hackathon Team",
     "license": "MIT",
     "tags": ["simulation", "social", "director"],
-    "host_capabilities": ["aps.kv", "aps.scope.app.read", "aps.scope.app.write", "llm.sample"],
+    "host_capabilities": ["aps.kv", "llm.sample"],
     "tools": [
         {
             "name": "world",
             "description": (
                 "Manage the Truman Town simulation. Use 'action' to select: "
                 "init | reset | tick | inject_event | list_scenarios | "
-                "get_agent | get_timeline | get_story."
+                "get_agent | get_timeline | get_story | get_snapshot (read saved world)."
             ),
             # Long tool: a multi-tick async job may run for minutes. The host
             # clamps sync invokes to ≤90s regardless; this default governs the
@@ -75,7 +75,7 @@ MANIFEST: dict[str, Any] = {
                     "name": "action",
                     "type": "string",
                     "required": True,
-                    "description": "Operation: init, reset, tick, inject_event, list_scenarios, get_agent, get_timeline, or get_story.",
+                    "description": "Operation: init, reset, tick, inject_event, list_scenarios, get_agent, get_timeline, get_story, or get_snapshot.",
                 },
                 {
                     "name": "scenario",
@@ -267,6 +267,11 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
         await save(_storage, world.snapshot())
         _world = world
         return {"scenario": world.scenario, "tick": 0, "world_time": world.world_time}
+
+    if action == "get_snapshot":
+        # Read committed APS state, not potentially unsaved in-memory state.
+        # Missing is an empty town; permission/transport failures must propagate.
+        return {"value": await load(_storage)}
 
     if action == "list_scenarios":
         # Openings ride along so the bundle can offer the three dramatic
