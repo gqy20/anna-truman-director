@@ -53,6 +53,17 @@ def test_health_reports_ok():
     assert resp["result"]["status"] == "ok"
 
 
+def test_describe_parameters_have_host_required_descriptions():
+    """Anna ParameterSchema.from_dict indexes description, even for optional parameters."""
+    manifest = _rpc({"jsonrpc": "2.0", "id": 1, "method": "describe"})[0]["result"]
+    for tool in manifest["tools"]:
+        for parameter in tool["parameters"]:
+            description = parameter.get("description")
+            assert isinstance(description, str) and description.strip(), (
+                f"{tool['name']}.{parameter['name']} requires a nonempty description"
+            )
+
+
 def test_initialize_negotiates_v2_with_capabilities():
     resp = _rpc(
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2.0"}}

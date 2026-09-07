@@ -1,8 +1,12 @@
 # 发布流程(World Director / Local)
 
+> **2026-09-07 复核更正（优先于下文历史记录）**：官方 topic 280/2 说明 reinstall 使用已安装 App 的 Executa 冻结引用，因此“必须安装成功才允许 cut”会形成循环依赖；应先核对 Executa 快照并 cut，再安装该 cut 版本并执行真机门禁，门禁通过后才提审/上架。本次已成功 cut App v0.4.5（id=679），锁定 Executa v0.4.5（id=433）。但 Developer Console Install 实际仍返回 `installed_version=0.3.3`、空 Executa 列表、`deployment=null`，不能视为目标版本安装通过。App 当前 `rejected`、无审核候选、latest 仍 v0.3.3，尚未重新提审。此前“必须等平台修复才 cut”及 `pending_review` 记录已过时；“cut 会更新在审候选”也不能作为通用规则。完整证据见 `../../mail/2026-09-07-cut-install-verification.md`；下一步是确认未发布 cut 版本的开发者安装入口，不能通过直接 release 绕过运行验证。
+
 实战沉淀:v0.4.3 提交审核被拒一次,定位 manifest host_api 根因后修复,cut v0.4.3 重新提审(2026-08)。下面的步骤按本次实际跑通过的顺序整理。
 
 ## 0. 发布前自检
+
+> **2026-09-07 describe 兼容性修复**：v0.4.5 的十个工具参数缺少 `description`，已安装 Anna Agent 的 `ParameterSchema.from_dict` 会抛出 `KeyError('description')`，外层可能只显示 `describe returned no manifest`。源码现已补齐描述，协议测试和二进制打包检查均要求参数描述非空。仅收到 describe JSON 不等于宿主解析通过；还需验证官方解析器、真实 Agent 注册及 App init/tick。该修复不代表平台旧版本安装问题已解决，也不会改变已冻结的 v0.4.5；正式分发必须构建新版本。
 
 | 项 | 命令 | 通过条件 |
 |---|---|---|
@@ -97,15 +101,15 @@ pnpm exec anna-app apps push
 # 2. 直传四个平台并冻结 ExecutaVersion。此刻本地四个 artifact 必须存在。
 pnpm exec anna-app executa publish
 
-# 3. 硬门禁:回读版本,并在真实 Windows Agent 上安装+调用。
+# 3. 回读冻结快照，确认四平台齐全。
 pnpm exec anna-app executa status tool-qingyu_ge-anna-truman-director-sxah66uc
 pnpm exec anna-app executa versions tool-qingyu_ge-anna-truman-director-sxah66uc
-# Executa Hub → My Tools → Truman Director → Install
-# 然后 Developer Console 安装 working draft,完成开镇 + 1 tick。
-# 若 deploy_status!=ready / executa_not_deployed / No binary available,立即停止。
-
-# 4. 只有 Windows 真机门禁通过后,才冻结 App 版本并锁 ExecutaVersion。
+# 4. 冻结 App 版本并锁定已核对的 ExecutaVersion；cut 不是提审/上架。
 pnpm exec anna-app apps cut 0.4.X+1 --changelog "<简明变更说明>"
+
+# 安装后回读实际 App/Executa 版本，完成 Windows 真机开镇 + tick。
+# Developer Install 若仍选旧版，或 deploy_status!=ready，则停止提审。
+# working draft 与 immutable cut 不是同一个版本，不能混用测试结论。
 
 # 5. 若是 archived 状态:先 unarchive 再 submit-review
 pnpm exec anna-app apps unarchive anna-truman-director-local --yes

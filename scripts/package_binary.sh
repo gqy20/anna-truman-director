@@ -170,6 +170,12 @@ d = json.loads(sys.argv[1])
 r = d.get("result")
 assert isinstance(r, dict) and (r.get("display_name") or r.get("name") or r.get("tools")), \
     "describe returned no manifest"
+assert r.get("tools"), "describe must include tools"
+for tool in r["tools"]:
+    for parameter in tool.get("parameters", []):
+        description = parameter.get("description")
+        assert isinstance(description, str) and description.strip(), \
+            f"{tool.get('name')}.{parameter.get('name')} requires description (Anna ParameterSchema)"
 PYEOF
 echo "    ✓ binary describe OK"
 
