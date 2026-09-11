@@ -3,6 +3,7 @@
   "name": "Truman Director",
   "version": "0.4.7",
   "executa_type": "tool",
+  "manifest_file": "executa-manifest.json",
   "description": "LLM-directed tick-based town simulator. The world tool exposes init | reset | tick | inject_event | list_scenarios | get_agent | get_timeline | get_story; agent decisions are produced by the host LLM via sampling, and each finished day is narrated into a story with a cliffhanger.",
   "tool_id": "tool-qingyu_ge-anna-truman-director-sxah66uc",
   "type": "python",

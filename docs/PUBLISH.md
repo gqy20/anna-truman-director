@@ -8,6 +8,27 @@
 
 ## 0. 发布前自检
 
+### CLI 与工具协议清单（2026-09-07）
+
+项目 CLI 固定为 `@anna-ai/cli@0.1.51`，使用 `pnpm install --frozen-lockfile` 安装。
+0.1.49 不在发布时同步工具 `manifest_cache`；0.1.51 支持该同步，但默认寻找
+`executa.json` 同目录的 `manifest.json`。本项目该文件是 **App 清单**，不可用于工具。
+因此 `executa.json.manifest_file` 显式指向独立的 `executa-manifest.json`。
+
+工具清单从插件的 `MANIFEST`（即 `describe` 返回值）生成，禁止手动维护第二份协议：
+
+```bash
+uv run python scripts/export_executa_manifest.py
+uv run python scripts/export_executa_manifest.py --check
+pnpm exec anna-app executa publish --dry-run --json
+```
+
+每次修改工具版本、参数或能力声明后重新生成并提交工具清单；单元测试检查其与
+`describe` 一致。归档里的 `manifest.json` 是二进制启动清单，也不能替代它。
+正式同步后回读工具详情，确认 `manifest_cache.version`、`tools` 和
+`host_capabilities` 与目标版本一致。CLI 升级与本地校验通过不等于平台缓存已更新，
+更不等于 `scope=tool` 的 `owner_id` 403 已解决；仍须原 App 真机验证。
+
 > **2026-09-07 describe 兼容性修复**：v0.4.5 的十个工具参数缺少 `description`，已安装 Anna Agent 的 `ParameterSchema.from_dict` 会抛出 `KeyError('description')`，外层可能只显示 `describe returned no manifest`。源码现已补齐描述，协议测试和二进制打包检查均要求参数描述非空。仅收到 describe JSON 不等于宿主解析通过；还需验证官方解析器、真实 Agent 注册及 App init/tick。该修复不代表平台旧版本安装问题已解决，也不会改变已冻结的 v0.4.5；正式分发必须构建新版本。
 
 | 项 | 命令 | 通过条件 |

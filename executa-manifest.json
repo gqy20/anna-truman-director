@@ -1,0 +1,89 @@
+{
+  "display_name": "Truman Director",
+  "version": "0.4.7",
+  "description": "LLM-directed tick-based town simulator.",
+  "author": "Anna Hackathon Team",
+  "license": "MIT",
+  "tags": [
+    "simulation",
+    "social",
+    "director"
+  ],
+  "host_capabilities": [
+    "aps.kv",
+    "llm.sample"
+  ],
+  "tools": [
+    {
+      "name": "world",
+      "description": "Manage the Truman Town simulation. Use 'action' to select: init | reset | tick | inject_event | list_scenarios | get_agent | get_timeline | get_story | get_snapshot (read saved world).",
+      "timeout": 86400,
+      "parameters": [
+        {
+          "name": "action",
+          "type": "string",
+          "required": true,
+          "description": "Operation: init, reset, tick, inject_event, list_scenarios, get_agent, get_timeline, get_story, or get_snapshot."
+        },
+        {
+          "name": "scenario",
+          "type": "string",
+          "required": false,
+          "description": "Preset scenario ID from list_scenarios; used by init/reset when spec is not provided."
+        },
+        {
+          "name": "spec",
+          "type": "object",
+          "required": false,
+          "description": "Custom world specification for init/reset; takes precedence over scenario."
+        },
+        {
+          "name": "lang",
+          "type": "string",
+          "required": false,
+          "description": "World language: zh or en. Defaults to zh on init/reset; tick can change it."
+        },
+        {
+          "name": "n",
+          "type": "integer",
+          "required": false,
+          "description": "Number of simulation ticks for tick; defaults to 1. The App invokes one tick per request."
+        },
+        {
+          "name": "event",
+          "type": "object",
+          "required": false,
+          "description": "Director event payload required by inject_event; queued for the next tick."
+        },
+        {
+          "name": "agent_id",
+          "type": "string",
+          "required": false,
+          "description": "Resident ID required by get_agent; optional actor/target filter for get_timeline."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "description": "Maximum events returned by get_timeline; defaults to 30 and is clamped to 1-100."
+        },
+        {
+          "name": "event_type",
+          "type": "string",
+          "required": false,
+          "description": "Optional exact event-type filter for get_timeline."
+        },
+        {
+          "name": "day",
+          "type": "integer",
+          "required": false,
+          "description": "Optional day-number filter for get_story; omit to return all retained stories."
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "type": "uv",
+    "min_version": "0.1.0"
+  }
+}

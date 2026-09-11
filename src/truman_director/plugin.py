@@ -36,7 +36,7 @@ from executa_sdk import (
     make_response_router,
 )
 
-from . import __version__
+from . import __version__, diagnostics
 from .engine import apply_inject_event, tick
 from .errors import (
     AgentNotFoundError,
@@ -328,6 +328,7 @@ def _write(msg: dict) -> None:
 
 def _ok(req_id: Any, result: dict) -> None:
     _write({"jsonrpc": "2.0", "id": req_id, "result": result})
+    diagnostics.event("response_ok_flushed", req_id)
 
 
 def _err(req_id: Any, code: int, message: str, data: dict | None = None) -> None:
@@ -335,6 +336,7 @@ def _err(req_id: Any, code: int, message: str, data: dict | None = None) -> None
     if data:
         err["data"] = data
     _write({"jsonrpc": "2.0", "id": req_id, "error": err})
+    diagnostics.event("response_error_flushed", req_id)
 
 
 # ─── method handlers ──────────────────────────────────────────────────
@@ -345,8 +347,13 @@ async def _handle_invoke(req_id: Any, params: dict) -> None:
     # every reverse-RPC our engine makes. It MUST live inside this coroutine:
     # contextvars don't flow across threads, and this handler is scheduled
     # onto the asyncio loop from the stdin thread (SDK context.py note).
-    with bind_invoke(params):
-        await _handle_invoke_bound(req_id, params)
+    started = time.monotonic()
+    diagnostics.event("invoke_enter", req_id)
+    try:
+        with bind_invoke(params):
+            await _handle_invoke_bound(req_id, params)
+    finally:
+        diagnostics.event("invoke_exit", req_id, elapsed_ms=(time.monotonic() - started) * 1000)
 
 
 async def _handle_invoke_bound(req_id: Any, params: dict) -> None:
@@ -434,6 +441,14 @@ def _stdin_loop() -> None:
             if not raw:
                 continue
             msg = json.loads(raw)
+            params = msg.get("params") or {}
+            arguments = params.get("arguments") if isinstance(params, dict) else None
+            diagnostics.event(
+                "stdin_received",
+                msg.get("id"),
+                method=msg.get("method"),
+                action=arguments.get("action") if isinstance(arguments, dict) else None,
+            )
             # Responses to OUR reverse-RPC requests are routed first.
             if "method" not in msg and _route_response(msg):
                 continue
@@ -504,6 +519,7 @@ def _configure_logging() -> None:
 def main() -> None:
     _configure_stdio()
     _configure_logging()
+    diagnostics.configure()
     _log.info("ready v%s", __version__)
     asyncio.run(_main())
 

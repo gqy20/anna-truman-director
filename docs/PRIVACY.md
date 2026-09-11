@@ -27,6 +27,12 @@ remote server of its own. The data it touches falls into three categories:
 ## 2. What we do not do
 
 - We do not collect telemetry, analytics, or crash reports.
+- For troubleshooting only, setting `TRUMAN_TRACE_DIR` enables local protocol
+  logs. These contain timestamps, process IDs, hashed request IDs, allow-listed
+  operation names, response status and duration, never credentials or payloads.
+  Nothing is uploaded automatically. Files rotate at 1 MB (two backups per
+  process); older process logs remain until you remove them. Unset the variable
+  and restart the Agent to disable tracing.
 - We do not share your world state, prompts, or generated stories with
   any third party.
 - We do not use your content to train any model.
