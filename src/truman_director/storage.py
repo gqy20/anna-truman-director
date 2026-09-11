@@ -22,11 +22,16 @@ async def load(storage: StorageClient) -> dict | None:
     t0 = time.monotonic()
     r = await storage.get(KEY, scope=SCOPE)
     dur = (time.monotonic() - t0) * 1000
-    if not r.get("exists"):
+    # Production APS always answers {value, exists}; the dev harness legacy
+    # backend omits `exists` entirely (anna_app_core dispatcher `_h_storage_get`
+    # returns bare {value}). A snapshot is always a dict, so a non-None value
+    # is an unambiguous hit under either shape.
+    value = r.get("value")
+    if not r.get("exists") and value is None:
         _log.info("load miss key=%s dur=%.0fms", KEY, dur)
         return None
-    _log.info("load key=%s size=%dB dur=%.0fms", KEY, _json_size(r["value"]), dur)
-    return r["value"]
+    _log.info("load key=%s size=%dB dur=%.0fms", KEY, _json_size(value), dur)
+    return value
 
 
 async def save(storage: StorageClient, snapshot: dict) -> None:

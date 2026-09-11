@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "host_capabilities": ["aps.kv"],
+  "host_capabilities": ["aps.kv", "aps.scope.tool.read", "aps.scope.tool.write"],
   "permissions": [
     "tools.invoke",
     "llm.complete",
