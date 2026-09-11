@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
-from executa_sdk import SamplingClient, emit_progress
+from executa_sdk import SamplingClient, SamplingError, emit_progress
 
 from .errors import AgentNotFoundError, InvalidEventSpecError, TickBudgetExceededError
 from .state import MAX_STORIES, DayStory, WorldState, event_to_dict
@@ -186,6 +186,19 @@ def _extract_json(text: str) -> tuple[object, str]:
     return None, "unparseable"
 
 
+# Process-wide response_format capability state. Flipped to True only after
+# the host EXPLICITLY rejects the schema (-32010: model lacks json_schema —
+# observed on the BYOK real-client path with MiniMax-M3). Before any rejection
+# we always ask for the strict schema with `on_unsupported="json_object"` so a
+# capable host downgrades server-side instead of erroring. The -32010 catch is
+# the belt to that suspenders: hosts that ignore `on_unsupported` get one
+# schema-less retry (text mode), loudly logged, and the process stays in text
+# mode thereafter. This is transport-capability adaptation — parsing defenses
+# (strict OUTPUT FORMAT prompt, _extract_json, corrective retry) do the real
+# work either way; red lines 1/4 untouched.
+_RESPONSE_FORMAT_REJECTED = False
+
+
 async def _sample_json(
     sampling,
     *,
@@ -203,18 +216,38 @@ async def _sample_json(
     prompt's contract. One corrective retry — showing the model its own bad
     answer — is still the model deciding (red line 1); exhausting the retry is
     loud (red line 4). ``validate(data)`` rejects shape-mismatches the same way
-    as parse failures. Returns (data, parse_path, full_raw_text, retry_used).
+    as parse failures. A -32010 capability rejection degrades to text mode and
+    does NOT consume the corrective retry. Returns
+    (data, parse_path, full_raw_text, retry_used).
     """
     messages = [{"role": "user", "content": {"type": "text", "text": user_text}}]
     raw_parts: list[str] = []
+    global _RESPONSE_FORMAT_REJECTED
     for attempt in range(2):
-        result = await sampling.create_message(
-            system_prompt=system,
-            messages=messages,
-            max_tokens=max_tokens,
-            response_format=response_format,
-            timeout=SAMPLING_TIMEOUT,
-        )
+        # Transport loop: one reserved re-send for the -32010 capability
+        # downgrade; it must not eat the model-output corrective retry above.
+        for _transport_try in range(2):
+            try:
+                result = await sampling.create_message(
+                    system_prompt=system,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    response_format=None if _RESPONSE_FORMAT_REJECTED else response_format,
+                    on_unsupported="json_object",
+                    timeout=SAMPLING_TIMEOUT,
+                )
+                break
+            except SamplingError as e:
+                if e.code == -32010 and not _RESPONSE_FORMAT_REJECTED:
+                    _log.warning(
+                        "host rejected response_format json_schema (code -32010: %s) "
+                        "— degrading to text-mode JSON for the rest of this process; "
+                        "strict OUTPUT FORMAT prompt + _extract_json remain in force",
+                        e.message,
+                    )
+                    _RESPONSE_FORMAT_REJECTED = True
+                    continue
+                raise
         content = result["content"]
         text = content.get("text", "") if isinstance(content, dict) else content
         raw_parts.append(text)

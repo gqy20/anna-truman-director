@@ -70,7 +70,7 @@ bundle/app.js → world/get_snapshot → storage.get(scope=tool)（读取已保�
 ## LLM 调用约定（BYOK 时代的关键坑）
 
 - `decide`/`narrate` 是仅有的两个调用点。新认知需求走它们或 `_sample_json` 封装，**不要**另起 `sampling.createMessage`。
-- **平台 BYOK 转发丢弃 `response_format`**（已向平台反馈，修复前 schema 不可依赖）：靠三层防御——① `prompts.yaml` 的 OUTPUT FORMAT (strict) 段；② `_extract_json` 剥 `<think>`/markdown 栅栏/最外层括号跨度；③ `_sample_json` 纠正式重试（1 次，形状校验失败也重试）。取证日志记录 `parse=direct/brace_span` 与重试次数。
+- **平台 BYOK 链路对 `response_format` 已从"静默丢弃"变为"显式拒绝"**（2026-09-11 真机实测：BYOK MiniMax-M3 报 `-32010: model does not support json_schema response format`）。防御是两层传输 + 三层解析：① 采样请求带 `on_unsupported="json_object"` 请宿主服务端降级；② `_sample_json` 捕获 `-32010` 后本进程转 text 模式重发一次（传输层重试，不消耗纠正式重试预算，响亮记日志）；③ `prompts.yaml` 的 OUTPUT FORMAT (strict) 段；④ `_extract_json` 剥 `<think>`/markdown 栅栏/最外层括号跨度；⑤ `_sample_json` 纠正式重试（1 次，形状校验失败也重试）。取证日志记录 `parse=direct/brace_span` 与重试次数。
 - **思考模型（MiniMax-M3、glm-5.x）的 `<think>` 块吃 token 预算**——`MAX_TOKENS=4096`（平台 per-call 上限，mint token 内 `max_tokens_per_call` 可读）、narrate 3072。设小了 JSON 会在输出前被截断（症状：`resp` 很大但 `char 0` 解析失败）。
 - strict json_schema 的历史怪癖仍在：host 偶尔解包单属性对象返回裸数组——dict|list 双容错保留。
 - prompt 文案**只动** `prompts.yaml`（单一来源）。`manifest.json` 的 `system_prompt_addendum` 是给宿主对话 LLM 的协议字段，另管。
