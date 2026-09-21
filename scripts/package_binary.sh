@@ -103,13 +103,16 @@ echo "==> Building single-file executable with PyInstaller"
 # Prefer `uv run` so PyInstaller runs inside the project .venv, which has the
 # local-path executa_sdk dep. A globally-installed pyinstaller (e.g. conda base)
 # usually LACKS executa_sdk → ModuleNotFoundError in the frozen binary. CI has
-# no uv but pip-installs pyinstaller + executa_sdk into one interpreter, so the
-# bare `pyinstaller` fallback is correct there.
+# pip-installs the pinned build requirements + SDK into its selected Python;
+# use that interpreter directly even when the runner also happens to have uv.
 run_pyinstaller() {
-  if command -v uv >/dev/null 2>&1; then
-    uv run --with pyinstaller python -m PyInstaller "$@"
+  if [ "${CI:-}" = "true" ]; then
+    # CI installs binary-requirements.txt into its selected Python first.
+    "$PY" -m PyInstaller "$@"
+  elif command -v uv >/dev/null 2>&1; then
+    uv run --with-requirements scripts/binary-requirements.txt python -m PyInstaller "$@"
   else
-    pyinstaller "$@"
+    "$PY" -m PyInstaller "$@"
   fi
 }
 # --collect-data skips prompts.yaml ("truman_director not a package" under the

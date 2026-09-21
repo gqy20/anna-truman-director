@@ -1,16 +1,14 @@
 # 发布流程(World Director / Local)
 
-> **0.4.7 候选状态（2026-09-07）**：已修复插件工具范围存储、前端 get_snapshot 读取、模型输出形状校验，以及本地 E2E 的 system 消息映射。104 项测试及一轮 Windows 二进制真实模型 E2E 通过（存储仍为测试替身）。真实 Agent 已加载 0.4.7，但诊断 App 工作草稿首个调用出现 70 秒超时，原因未定。四平台构建/上传冻结、目标版本安装、真实 APS 和 UI 验收仍是提审门禁；GitHub Release 不代表 Marketplace 审核通过。
-
-> **2026-09-07 复核更正（优先于下文历史记录）**：官方 topic 280/2 说明 reinstall 使用已安装 App 的 Executa 冻结引用，因此“必须安装成功才允许 cut”会形成循环依赖；应先核对 Executa 快照并 cut，再安装该 cut 版本并执行真机门禁，门禁通过后才提审/上架。本次已成功 cut App v0.4.5（id=679），锁定 Executa v0.4.5（id=433）。但 Developer Console Install 实际仍返回 `installed_version=0.3.3`、空 Executa 列表、`deployment=null`，不能视为目标版本安装通过。App 当前 `rejected`、无审核候选、latest 仍 v0.3.3，尚未重新提审。此前“必须等平台修复才 cut”及 `pending_review` 记录已过时；“cut 会更新在审候选”也不能作为通用规则。完整证据见 `../../mail/2026-09-07-cut-install-verification.md`；下一步是确认未发布 cut 版本的开发者安装入口，不能通过直接 release 绕过运行验证。
-
-实战沉淀:v0.4.3 提交审核被拒一次,定位 manifest host_api 根因后修复,cut v0.4.3 重新提审(2026-08)。下面的步骤按本次实际跑通过的顺序整理。
+> 当前证据以 [RELEASE-STATUS.md](RELEASE-STATUS.md) 为准。本文维护操作流程，不把历史草稿、GitHub Release 或已提审写成正式上架。
+>
+> 顺序：四平台构建 → apps push → executa publish → 回读冻结快照 → apps cut → 安装目标 cut 并验收 → submit-review → 审核批准 → release。cut 用于生成安装引用，不代表通过运行门禁。门禁失败时停止提审/上架。
 
 ## 0. 发布前自检
 
-### CLI 与工具协议清单（2026-09-07）
+### CLI 与工具协议清单
 
-项目 CLI 固定为 `@anna-ai/cli@0.1.51`，使用 `pnpm install --frozen-lockfile` 安装。
+项目 CLI 固定为 `@anna-ai/cli@0.1.53`，使用 `pnpm install --frozen-lockfile` 安装。
 0.1.49 不在发布时同步工具 `manifest_cache`；0.1.51 支持该同步，但默认寻找
 `executa.json` 同目录的 `manifest.json`。本项目该文件是 **App 清单**，不可用于工具。
 因此 `executa.json.manifest_file` 显式指向独立的 `executa-manifest.json`。
@@ -46,6 +44,8 @@ pnpm exec anna-app executa publish --dry-run --json
 
 引擎任何改动(纯云版/本地 Executa 切换/算法调整)必须走二进制;bundle 改动则不需要。
 
+仅修改 App bundle/说明时，可独立增加 App 版本并复用已冻结的 Executa；例如 App0.4.9固定依赖Executa0.4.8。以下四处版本同步和新二进制构建适用于同时发布引擎的版本，不应为了App-only cut改写旧工具版本。
+
 ```bash
 # 1. 同步版本号(四处必对齐),并提前把 binary_artifacts.path 改为
 #    dist-release/v0.4.X+1/<tool_id>-<platform>.tar.gz。
@@ -73,7 +73,7 @@ mkdir -p dist-release/v0.4.X+1
 gh release download truman-director-v0.4.X+1 \
   --pattern 'tool-*.tar.gz' --dir dist-release/v0.4.X+1
 pnpm exec anna-app executa upload-binaries --dry-run --json
-# 必须看到四个平台；Windows entrypoint 必须带 .exe。此时仍不要 cut App。
+# 必须看到四个平台；Windows entrypoint 必须带 .exe。先发布并核对 Executa 冻结快照，再 cut App。
 ```
 
 Release 资产本身就是公网 URL(`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`)。从下一版开始，**Executa binaries、SHA256 和 Marketplace screenshots 共用同一个版本 Release**，但截图只在 binary workflow 完成后追加，见 §3。
@@ -165,7 +165,7 @@ dry-run 必须先确认 app_id、slug 和全部 URL 正确。Developer Console �
 
 GitHub Release 在这里充当**稳定的公网静态文件托管**。Anna Marketplace 保存的是 `cover_url` / `screenshots[]` URL，不会把 PNG 复制进平台；所以只要元数据仍引用某个 Release Asset，那个 Release 就是线上依赖，不能删除。
 
-当前 `Marketplace Screenshots — v0.4.4` (`truman-director-screenshots-v0.4.4`) 仍被 app 82 的线上平台元数据和正在进行的 v0.4.4 审核引用；v0.4.5 工作树虽已准备迁移 URL，但在新资产上传并执行 `sync-meta` 前尚未生效。**现在删除仍会导致线上封面和四张截图全部 404**。
+当前 `app.json` 的封面与截图引用 `truman-director-v0.4.5`。版本号不同不等于截图失效；只要画面仍准确可以继续使用。清理前必须回读线上元数据和审核候选引用，本地配置不能证明旧资产已无引用。
 
 从 v0.4.5 起不再单独创建 screenshots Release。等 binary workflow 完成后，把干净截图追加到同一个版本 Release：
 
@@ -218,10 +218,10 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 | `apps cut` 报 `Version X.Y.Z already published with different content` | `apps push` 对 bundled executa 是 no-freeze | 先跑 `executa publish` 显式冻结工具版本 |
 | `apps release` 报 `app status is archived` | App 在归档状态 | `apps unarchive <slug> --yes` |
 | `apps release` 报 `app status is draft` | App 从未过审 | `apps submit-review` |
-| `apps submit-review` 报 `App 状态不允许提交审核: pending_review` | 上一轮审核未结束 | 不要重复 submit。2026-09-01 实测：在 pending_review 下成功 cut 新版本后，服务器自动把现有审核指针更新到新 cut；必须用 `apps status` 回读确认 |
+| 审核期间 cut 后候选仍为旧版 | cut 与审核候选是独立指针 | 2026-09-20 官方文档 §2 说明：cut 不自动移动候选；需要切换到已验收的新 cut 时显式 submit-review，然后回读候选。同候选重复提交为幂等操作，预检失败保留原候选；服务器行为不符时记录错误并停止，不套用 9 月 1 日旧经验 |
 | Developer Console 报 `Save failed: manifest does not declare agent.session.auto` | manifest host_api 写法错误(数组而非嵌套对象),缺 agent.session.auto: true | 见 §2 |
 | `desc:` 时 dev harness 跑一会挂 / `Object has no member 'ref'` | bundle SDK 在 harness 进程里调 agent.session.refresh 被拒 | 修了上面之后正常 |
-| Windows Agent 安装报 `No binary available for platform 'windows-x86_64'` | immutable ExecutaVersion 冻结时没有 Windows map；当前 Executa 记录后来补齐也不会修旧快照 | 禁止 App cut/release；补齐四平台后发布新的 Executa patch 版本，Windows 真机安装通过再 cut App |
+| Windows Agent 安装报 `No binary available for platform 'windows-x86_64'` | immutable ExecutaVersion 冻结时没有 Windows map；当前 Executa 记录后来补齐也不会修旧快照 | 补齐四平台后发布新的 Executa patch，回读快照后 cut，安装目标 cut 验证；失败时禁止提审/release |
 | `binary_urls` 当前记录有四平台，但 frozen version 只剩 macOS ARM + Linux | 平台 pull-mirror 冻结路径丢失 Intel macOS/Windows（v0.4.4、首次 v0.4.5 均复现） | 改用 `binary_artifacts`，下载 GitHub Release 四归档后由 CLI 直传；坏快照若未被 AppVersion 引用可 yank 后重建 |
 | Executa Hub Install 明明默认 Local 却请求 Cloud Agent | 页面 `window.defaultAgentClientId` 为空时错误回退 `agents[0]` | 从 Network 核对 `/agents/<client_id>/plugins/reinstall` 的目标；平台修复前不要把按钮提示当成部署成功证据 |
 | BYOK 探针:开关 ON 时 500,OFF 时正常 JSON 错误 | 平台 app/complete 路径的 BYOK 转发 bug(2026-08 实测,3 家供应商 × 含/不含思考模型 × 开关两态全 500) | 官方论坛 2026-08-27 确认修复于 `v1.1.0-beta.144`；升级后重跑原矩阵并在 topic 256 回帖确认 |
@@ -233,49 +233,49 @@ opencli browser truman tab new "https://anna.partners/developer?app=82&tab=basic
 - [ ] `pnpm exec anna-app validate` 通过
 - [ ] `uv run ruff format --check . && uv run ruff check .` 通过
 - [ ] `uv run pytest -q` 全绿
+- [ ] `pnpm test:frontend` 通过
 - [ ] Windows 默认环境（不依赖手动 `PYTHONUTF8=1`）下 mock E2E 通过
 - [ ] `pwsh -File scripts/review_smoke_opencli.ps1` 真实 LLM smoke 输出 PASS、5 张截图且 `rpcErrors=0`
 - [ ] `manifest.json#ui.host_api` 是嵌套对象,含 `agent.session.auto: true`
-- [ ] 版本号四处对齐(executa.json / app.json / pyproject.toml / __init__.py)
+- [ ] 引擎发布时四处版本对齐；App-only cut时记录独立App版本和明确的Executa冻结版本，不重写未改动的引擎版本
 - [ ] `executa.json#binary_artifacts` 声明四个平台，`dist-release/v<version>/` 四归档已下载
 - [ ] `executa upload-binaries --dry-run --json` 显示四个平台和正确 Windows `.exe` entrypoint
 - [ ] GitHub Release 4 tar.gz + 4 sha256 齐全
 - [ ] 冻结后的 ExecutaVersion 已在真实 Windows Agent 安装成功（不能只检查当前 Executa 记录）
-- [ ] Developer working draft 的 `deploy_status=ready`，开镇 + 1 tick 不报 `executa_not_deployed`
+- [ ] 安装实际目标 immutable cut，回读 AppVersion、ExecutaVersion、Agent ID/类型/版本及部署 ready；开镇 + tick 成功。working draft 不能替代 cut 验收
+- [ ] Windows Local 与审核 Cloud 环境分别记录结果；未支持环境明确写入产品说明及审核说明
 - [ ] Developer Console「基本信息」表单已填 homepage/support/privacy/cover/screenshot URL
 - [ ] `docs/PRIVACY.md` 在仓库里
 - [ ] 按 `docs/REVIEW-FEEDBACK.md` 跑完 TC-01～TC-05，并保存工具输入、工具输出和前端结果证据
 - [ ] `uv run python scripts/review_acceptance.py` 输出 TC-01～TC-05 + Security 全 PASS
 - [ ] 安全复核完成：动态文本转义、CSP、权限最小化、无密钥入库
 - [ ] `apps push` + `executa publish` + `apps cut <version>` 顺序正确
-- [ ] `apps submit-review` 已发(或等上轮结束)
+- [ ] `apps submit-review` 后回读审核候选；pending_review 下若要切换到已验收的新 cut，显式重新提交并确认候选变化
+- [ ] 审核批准后对同一已验收版本执行 release，并回读 Marketplace 最新版本
 
 ## 6. 历史审核反馈
 
-2026-08-19 的 v0.3.3 Marketplace 审核把问题分成五类：App frontend 不可访问、Tools 不可执行、Permission 无法保存、产品页/截图缺失，以及 TC-01～TC-05 与安全检查无法验证。逐项闭环状态、证据和剩余缺口统一维护在 [`REVIEW-FEEDBACK.md`](REVIEW-FEEDBACK.md)，不要再从旧邮件草稿推断当前状态。
+2026-08-19 的 v0.3.3 Marketplace 审核把问题分成五类：App frontend 不可访问、Tools 不可执行、Permission 无法保存、产品页/截图缺失，以及 TC-01～TC-05 与安全检查无法验证。历史逐项证据保存在 [`REVIEW-FEEDBACK.md`](REVIEW-FEEDBACK.md)，当前阻塞与剩余门禁见 [`RELEASE-STATUS.md`](RELEASE-STATUS.md)，不要从旧邮件草稿推断当前状态。
 
-## 7. 当前进度(2026-09-01)
+## 7. 当前状态与审核环境
 
-- 历史 v0.4.3 已 cut(version_id=521,锁定 executable v0.4.2)
-- v0.4.4 已 cut(version_id=623)，冻结 executa_version=427(v0.4.4)
-- 平台状态仍为 `pending_review`，但 `in review` 已由服务器自动更新为 v0.4.4；线上 latest 仍是 v0.3.3
-- 仓库已提交:`fix(manifest): host_api 嵌套对象 + agent.session.auto: true` (38a3435),`docs: PRIVACY.md + ignore` (af9ae25)
-- Developer Console「基本信息」表单已保存(homepage/support/privacy/cover/screenshot URL 全部填好)
-- v0.4.4 源码已提交并推送；tag `truman-director-v0.4.4` 的四平台 binary + SHA256 Release 已成功
-- `executa.json#binary_urls` 已切换到 v0.4.4 Release
-- 截图 Release `truman-director-screenshots-v0.4.4` 已发布 4 张 PNG；app 82 的 cover/homepage/support/privacy/screenshots 已 PATCH 并 GET 回读确认
-- 2026-09-01 本地验证：90 tests、Ruff、manifest、Windows UTF-8 mock E2E 全绿；harness 完成真实 LLM 开镇、事件注入、定向居民事件、XSS inert-markup、3 tick 与中英切换
-- TC-01～TC-05 + Security 本地证据已补齐
-- `apps push` 已更新 working draft rev 6；`executa publish` 与 `apps cut 0.4.4` 均成功
-- 2026-09-01 真机复核发现 v0.4.4 immutable ExecutaVersion 在 Windows 安装时报 `No binary available for platform 'windows-x86_64'`，尽管当前 Executa 记录和 GitHub Release 已有四平台；working draft 因此 `deploy_status=degraded` / `executa_not_deployed`
-- Executa Hub Install 还存在默认 Local 却请求 Cloud Agent 的前端选路 bug；Network 证据显示请求落到 Cloud client_id
-- v0.4.5 tag/Release 已完成：workflow 全绿，4 binary + 4 SHA256 + 4 Marketplace PNG 共 12 个资产；元数据已 sync，working draft rev 7；本地 90 tests/Ruff/manifest/mock E2E/TC-01～TC-05/Security/真实 OpenCLI smoke 全绿
-- 首次 v0.4.5 pull-mirror 快照(id=432)仍丢 Windows/Intel macOS，确认无 AppVersion 引用后已 yank；随后用 `binary_artifacts` 直传四平台并重建 v0.4.5(id=433, `binary_source=direct-upload`)
-- 当前 Executa/UserExecuta 均回读四平台，且刷新安装记录(7404→10649)后授权已恢复、credentials 为空；但 Local Windows reinstall 后端仍错误返回只有 `darwin-arm64, linux-x86_64`
-- 因真机门禁失败，App v0.4.5 **尚未 cut**；审核候选仍是 v0.4.4，线上 latest 仍是 v0.3.3。下一步必须由平台修复 `/agents/{client_id}/plugins/reinstall` 的平台解析后再重试，禁止绕过并 cut/release
-# 存储修正发布门禁（2026-09-07）
+见 [RELEASE-STATUS.md](RELEASE-STATUS.md)。旧版本安装故障仅作历史依据，不代表今天的平台状态。
+
+2026-09-20 回读的 [官方发布文档](https://anna.partners/developers/apps/app-publish.md) §2 明确支持 pending_review 下切换候选，§4 限定 APPROVED/PUBLISHED 才能发布；同页状态概览仍含“不允许重复提交”等相冲突旧描述。操作以详细规则为依据并回读服务器结果，不能把文档更新当成本项目已验收。
+[版本文档](https://anna.partners/developers/apps/app-versioning.md) 未提供任意历史版本的公开安装入口。目前控制台只有草稿安装和旧 latest 安装可见；目标 cut 的受支持验收入口须向平台确认，不能用 release 绕过审核，也不能以 working draft 测试替代 cut 验收。
+
+## 8. 真实存储验收
 
 0.4.6 真机开镇暴露 `forbidden_scope`：插件不能使用 App 存储范围。
 后续补丁使用工具范围持久化和 `get_snapshot` 前端读取；不得覆盖已冻结 0.4.6。
 发布前必须验证：空存储展示开镇 → init → get_snapshot → 真模型 tick → 关闭重开恢复同一快照；
 还需检查权限拒绝明确显示错误。单元测试和 MOCK E2E 不能替代该平台验证。
+
+## 9. 发布前环境版本核对
+
+- `pnpm exec anna-app --version` 与项目 package.json/lockfile 一致；`npm view @anna-ai/cli version dist-tags --json` 查询官方版本。
+- 全局 `anna-app --version` 可能不同；发布统一使用项目 `pnpm exec`。401 必须先恢复登录，升级 CLI 不会刷新 PAT。
+- 本机 Agent 的磁盘版本、运行进程版本和平台心跳版本分别记录；从 [官方页面](https://anna.partners/download) 查询同平台正式下载版本。平台 beta 号与 Agent beta 号是两套版本。
+- Cloud Agent 是独立环境，升级本机 Agent 不会升级审核方 Cloud Agent。记录其实际版本/平台/依赖冻结版本/安装错误，不能根据本机版本推断。
+- CI 将 SDK 固定到确定提交，构建依赖见 `scripts/binary-requirements.txt`（来自 v0.4.8 成功构建）。本地 SDK checkout 必须与 CI 一致；这些约束不意味着不同 OS runner 的产物逐字节一致。
+- [官方审核流程](https://forum.anna.partners/t/app-review-timeline-process/318) 要求完整核心流程及所支持 Agent 环境自测。重新提审会进入新的审核周期，不以频繁提交替代验收。

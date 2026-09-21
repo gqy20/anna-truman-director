@@ -1,6 +1,8 @@
 # Marketplace 审核反馈闭环
 
-> 最后核对：2026-09-01。这里区分“本地已验证”和“平台已复审”；只有后者才能写成 Marketplace 审核通过。
+> 当前状态以 [RELEASE-STATUS.md](RELEASE-STATUS.md) 为准。2026-09-16 最新审核：前端可打开，但 Cloud Agent 开镇报 Executa 未部署，邮件未注明实际测试版本。完整功能复审及上架尚无通过证据。
+>
+> 以下为 2026-09-01 历史验收基线，保留技术证据；其中版本、审核指针和平台问题状态不能用于判定当前版本。新版本必须在实际目标 cut 上重新验收。
 
 ## 1. 来源与基线
 
@@ -81,7 +83,7 @@
 - 一份重启恢复证据，证明 APS KV 中的世界状态和可见后果未丢失。
 - Security：动态文本转义、CSP、权限最小化、非法 action/agent_id、存储或 sampling 失败响亮返回。
 
-## 6. 当前不能宣称的事项
+## 6. 2026-09-01 当时的证据边界
 
 - v0.4.4 尚未获得 Marketplace 审核通过。
 - 当前审核已指向 v0.4.4 immutable cut；后续 main 改动仍不会自动进入该快照。
@@ -96,4 +98,4 @@
 - 明确请求 Local Agent reinstall 后，平台返回 `No binary available for platform 'windows-x86_64'. Available platforms: darwin-arm64, linux-x86_64`。
 - GitHub v0.4.4 Release 和当前 `/executas/my` 记录虽已有四平台，但 immutable ExecutaVersion 427 的安装快照不完整；后补当前记录不会修复旧快照。
 
-因此 v0.4.4 不得 release。v0.4.5 已完成四平台 Release、Marketplace 图片迁移、working draft rev 7、ExecutaVersion 直传重建(id=433)和全量本地测试；但平台 reinstall 后端即使面对 `binary_source=direct-upload`、四平台当前记录和全新 UserExecuta 安装记录，仍只识别 `darwin-arm64, linux-x86_64`。App v0.4.5 未 cut，审核候选仍保持 v0.4.4，等待平台修复安装解析后再继续。
+当时的结论（2026-09-01）：因此 v0.4.4 不得 release。v0.4.5 已完成四平台 Release、Marketplace 图片迁移、working draft rev 7、ExecutaVersion 直传重建(id=433)和全量本地测试；但平台 reinstall 后端即使面对 `binary_source=direct-upload`、四平台当前记录和全新 UserExecuta 安装记录，仍只识别 `darwin-arm64, linux-x86_64`。App v0.4.5 未 cut，审核候选仍保持 v0.4.4，等待平台修复安装解析后再继续。

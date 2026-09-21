@@ -57,6 +57,7 @@ const T = {
     errConn: (m) => `连接失败:${m}`,
     errQuota: "平台配额用尽——请到 Anna 客户端处理订阅后重试",
     errTimeout: "调用超时,稍后再试",
+    errDeployment: "当前 Agent 尚未部署小镇引擎。请在 Anna 中检查所选 Agent 是否在线，并完成此应用所需工具的安装或修复，然后重试。",
     injectOk: (t) => `🎬 t${t} 生效`,
   },
   en: {
@@ -88,6 +89,7 @@ const T = {
     errConn: (m) => `Connection failed: ${m}`,
     errQuota: "Platform quota exhausted — please fix your subscription in the Anna client and retry",
     errTimeout: "Call timed out — try again shortly",
+    errDeployment: "The town engine is not deployed on the selected Agent. In Anna, check that this Agent is online and install or repair this app's required tool, then retry.",
     injectOk: (t) => `🎬 effective at t${t}`,
   },
 };
@@ -180,7 +182,7 @@ async function boot() {
     if (live) enableTick(true);
     if (typeof anna.tools?.listJobs === "function") recoverJobs().catch(() => {});
   } catch (err) {
-    setStatus(t().errConn(err.message || err), "err", 0);
+    setStatus(t().errConn(friendlyError(err)), "err", 0);
   }
 }
 
@@ -193,7 +195,13 @@ async function invokeWorld(args) {
   // 容忍三种返回形态:插件信封 {success,data} / call API {ok,result} / 裸载荷。
   const ok = res?.success ?? res?.ok ?? true;
   const data = res?.data ?? res?.result ?? res;
-  if (!ok) throw new Error(res?.error || res?.message || "invoke failed");
+  if (!ok) {
+    const detail = res?.error;
+    const message = typeof detail === "string" ? detail : detail?.message;
+    const error = new Error(message || res?.message || "invoke failed");
+    error.code = detail?.code ?? res?.code;
+    throw error;
+  }
   return data;
 }
 
@@ -272,6 +280,8 @@ function isJobChannelMissing(err) {
 // 已知平台错误 → 一句人话(其余原样透传,失败要响亮但不刷屏)。
 function friendlyError(err) {
   const s = err?.message || String(err);
+  if (err?.code === "executa_not_deployed" || /executa_not_deployed|executa\b[^\n]*\bnot deployed/i.test(s))
+    return `${t().errDeployment}\n${s}`;
   if (s.includes("APP_QUOTA_EXCEEDED") || s.includes("Subscription expired"))
     return t().errQuota;
   if (s.includes("timed out")) return t().errTimeout;

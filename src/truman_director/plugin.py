@@ -298,9 +298,10 @@ async def _tool_world(action: str, **kwargs: Any) -> dict:
             if lang not in ("zh", "en"):
                 raise InvalidWorldSpecError(f"lang must be 'zh' or 'en', got {lang!r}")
             if lang != world.lang:
-                _log.info("lang switch %s → %s at tick %s", world.lang, lang, world.current_tick)
-                world.lang = lang
-        return {"results": await tick(world, _sampling, _storage, n)}
+                _log.info(
+                    "lang switch requested %s → %s at tick %s", world.lang, lang, world.current_tick
+                )
+        return {"results": await tick(world, _sampling, _storage, n, lang=lang)}
 
     if action == "inject_event":
         return apply_inject_event(world, kwargs["event"])

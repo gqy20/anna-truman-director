@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from copy import deepcopy
+from dataclasses import fields
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -448,6 +450,8 @@ async def tick(
     sampling,  # SamplingClient
     storage,  # StorageClient
     n: int = 1,
+    *,
+    lang: str | None = None,
 ) -> list[dict]:
     """Advance *n* ticks. Returns a list of per-tick result dicts.
 
@@ -455,6 +459,11 @@ async def tick(
     and the host budgets ``max_calls`` (default 8) per invoke. Asking for more is
     a loud :class:`TickBudgetExceededError` — never a silent, half-applied run
     that persists the first few ticks and then fails.
+
+    Each tick commits separately after all cognition and one successful save.
+    A later failure preserves earlier committed ticks in a multi-tick invoke.
+    Storage transport errors can have an ambiguous remote outcome; this local
+    commit boundary does not provide distributed exactly-once execution.
     """
     if n > MAX_TICKS_PER_INVOKE:
         raise TickBudgetExceededError(
@@ -464,40 +473,46 @@ async def tick(
         )
     results = []
     for _ in range(n):
-        prev_day_start = world.day_start_tick
-        rolled = world.advance_tick()
+        # Work on a transient copy: failed sampling, narration, cancellation or
+        # rejected saves must not consume time, events or queued injections.
+        # Do not round-trip snapshot(): it truncates history and omits the queue.
+        candidate = deepcopy(world)
+        if lang is not None:
+            candidate.lang = lang
+        prev_day_start = candidate.day_start_tick
+        rolled = candidate.advance_tick()
 
         # Drain director injections FIRST and fold them into the world, so this
         # tick's snapshot already carries them as established facts. The model then
         # reacts in the SAME tick the director fired them — not one tick late.
         # (CLAUDE.md: injections fire at effective_tick, drained before the model decides.)
-        injections = world._pending_injections[:]
-        world._pending_injections.clear()
+        injections = candidate._pending_injections[:]
+        candidate._pending_injections.clear()
         for inj in injections:
-            world.apply_event(inj)
-            world.record_event(inj)
+            candidate.apply_event(inj)
+            candidate.record_event(inj)
         if injections:
             _log.info(
-                "tick=%s drained %d director injection(s)", world.current_tick, len(injections)
+                "tick=%s drained %d director injection(s)", candidate.current_tick, len(injections)
             )
 
-        world_view = localized_view(world)
+        world_view = localized_view(candidate)
         events = await decide(sampling, world_view)
         for evt in events:
-            world.apply_event(evt)
-            world.record_event(evt)
+            candidate.apply_event(evt)
+            candidate.record_event(evt)
 
-        await save(storage, world.snapshot())
-
-        # Day-close routine (DESIGN §6.2 / M1.5): the tick that carries the town
-        # past midnight seals the finished day with a narrated story — the
-        # model's prose retelling plus the cliffhanger that brings the director
-        # back tomorrow. Budget: this invoke spent 1 decide, narrate makes it 2
-        # (≤ 8 per invoke). Runs after save so the story lands in the same
-        # persisted snapshot.
+        # Midnight decisions and narration form one saved tick. Saving before
+        # narration would leave a committed rollover with no story on failure.
         if rolled:
-            story = await day_close(world, sampling, prev_day_start)
-            await save(storage, world.snapshot())
+            story = await day_close(candidate, sampling, prev_day_start)
+        await save(storage, candidate.snapshot())
+
+        # No await between the successful save and publishing the committed state.
+        for field in fields(world):
+            setattr(world, field.name, getattr(candidate, field.name))
+
+        if rolled:
             results.append(
                 {
                     "tick": world.current_tick,

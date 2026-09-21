@@ -10,14 +10,23 @@
 每个 tick 上每一位智能体的动作，都由宿主 LLM 通过采样（sampling）产出。插件本身只负责推进时钟、
 把世界快照交给模型、再原样执行模型返回的事件。
 
+## 运行与发布状态
+
+当前发布基线为 v0.4.8；工作树修正尚未发布。版本核对、审核阻塞及证据边界见
+[发布状态](docs/RELEASE-STATUS.md)，完整门禁见 [发布流程](docs/PUBLISH.md)。
+
+引擎是所选 Anna Agent 上的进程，需要该 Agent 在线且已部署 bundled Executa。
+Windows Local Agent 有安装验证记录；Cloud Agent 的部署与完整验收尚未闭环。
+在一个 Agent 上安装成功不代表另一个 Agent 已可调用。`main` 就是此 Executa 版本。
+
 ## 仓库内容
 
-一个 Anna App 由三部分组成，本仓库三者俱全：
+一个 Anna App 由以下部分组成：
 
 | 部分 | 文件 | 职责 |
 | --- | --- | --- |
-| **App 清单** | `manifest.json` | Anna App 元数据（slug、分类、绑定的 executa） |
-| **App 配置** | `app.json` | 权限、system prompt 附加说明、UI 视图规格 |
+| **App 清单** | `manifest.json` | 权限、system prompt 附加说明、UI 视图规格 |
+| **App 配置** | `app.json` | Anna App 元数据（slug、分类、绑定的 executa） |
 | **Bundle** | `bundle/` | 静态单窗口界面（网格地图 + 时间线 + 导演面板） |
 | **Executa** | `src/truman_director/` | Python stdio 工具插件 —— 推进世界、持久化状态 |
 
@@ -53,8 +62,14 @@ plugin ──▶ engine ──▶ {state, storage}
 | action | 效果 |
 | --- | --- |
 | `init` | 构建一个场景，初始化各地点的居住者，持久化，并作为当前运行保留 |
+| `reset` | 重建当前世界，可指定预设或自定义场景 |
 | `tick` | 推进 N 个 tick：时钟 → 快照 → 决策（LLM）→ 应用事件 → 持久化 |
 | `inject_event` | 入队一个导演事件，在下一个 tick 触发 |
+| `list_scenarios` | 列出预设场景和戏剧开场 |
+| `get_agent` | 读取居民档案、关系与近事 |
+| `get_timeline` | 读取事件历史 |
+| `get_story` | 读取日终故事 |
+| `get_snapshot` | 从工具范围存储读取已保存的世界快照 |
 
 ### 线程模型
 
@@ -85,7 +100,8 @@ JSON-RPC stdin/stdout 设为 UTF-8，形成双层保证。
 ### 测试、格式化、lint
 
 ```bash
-uv run pytest -q              # 90 个测试，asyncio_mode=auto
+uv run pytest -q              # 全量测试，asyncio_mode=auto
+pnpm test:frontend           # 部署错误指引与错误信封回归
 uv run ruff format --check .  # 发布门禁：格式检查
 uv run ruff check .           # lint（E/F/W/I/N/UP/B/SIM/RUF/ASYNC）
 ```

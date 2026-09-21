@@ -4,6 +4,12 @@
 > 上层用户级规则（中文回答、工具偏好等）与本文叠加生效。技术标识符保留英文。
 > `CLAUDE.md` 只是指向本文件的薄指针——**改规则只改这里**。
 
+## 用户操作偏好
+
+- 使用简体中文回答。
+- Anna 网站需要登录或登录过期时，优先直接点击页面上的 GitHub 登录入口，继续已有账号的正常登录流程，不必先让用户手动登录。此偏好由用户于 2026-09-20 明确指定。
+- 若页面没有 GitHub 登录入口，不凭空假定存在；遇到验证码、需要用户输入凭证或新增敏感权限授权时，按实际页面和工具规则处理。
+
 ## 项目定位
 
 Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷你 AI 小镇模拟器。当前架构是 **本地 Executa 版**：
@@ -32,7 +38,7 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 
 1. **模型是唯一决策者** — 不引入启发式、规则引擎、行为树、概率表。居民动作只能来自 `engine.decide`。bundle/plugin **绝不**替模型决策。解析层适配（`_extract_json` 的 think/fence/brace 剥离）与纠正式重试（`_sample_json`）是**解析**不是决策，不触犯本条。
 2. **单一真相来源** — `WorldState`（`state.py`）与 APS KV `scope=tool`、key `truman:run:world` 是同一份序列化的两端。不在别处维护影子状态；bundle `refresh()` 经只读 `get_snapshot` 读取已保存快照。插件不能访问 App 存储范围；不得退回 `anna.storage.get` 默认 App 范围。
-3. **单一编排入口** — plugin 的 `world` 工具是**唯一**推进世界的入口（9 个 action：`init`/`reset`/`tick`/`inject_event`/`list_scenarios`/`get_agent`/`get_timeline`/`get_story`/`get_snapshot`）。`engine.tick`：推进时钟 → 排空导演注入（先于决策）→ 决策 → 应用/留痕 → 持久化 →（跨午夜）日终 narrate。
+3. **单一编排入口** — plugin 的 `world` 工具是**唯一**推进世界的入口（9 个 action：`init`/`reset`/`tick`/`inject_event`/`list_scenarios`/`get_agent`/`get_timeline`/`get_story`/`get_snapshot`）。`engine.tick`：在临时副本上推进时钟 → 排空导演注入（先于决策）→ 决策 → 应用/留痕 →（跨午夜）日终 narrate → 一次持久化 → 更新运行中的 WorldState。采样、叙事、明确拒绝保存或取消失败时，内存状态及待执行注入保持原样，错误继续冒泡。临时副本仅用于提交准备，不是另一份持久化真相；多 tick 逐个提交，后续失败保留此前成功的 tick。
 4. **失败要响亮** — 解析失败、反向 RPC 失败必须抛出冒泡；`_sample_json` 的重试（1 次，带模型自己的坏输出回炉）耗尽后响亮失败。**绝不**静默吞错、**绝不**降级默认行为。
 5. **不玩并发花样** — 主线程 asyncio loop 串行处理 invoke；tick 串行。引擎就是「推进 → 问模型 → 应用 → 存」。
 
@@ -40,7 +46,7 @@ Truman Director 是一个 experience 类型的 **Anna App**：基于 tick 的迷
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/truman_director/plugin.py` | stdio JSON-RPC 主循环 + `world` 分发器（8 action + `lang` 参数）+ 反向 RPC 路由；`_build_world` 校验 lang（zh/en）；`tick` 可中途切语言；`get_agent` 返回双语档案字段 |
+| `src/truman_director/plugin.py` | stdio JSON-RPC 主循环 + `world` 分发器（9 action + `lang` 参数）+ 反向 RPC 路由；`_build_world` 校验 lang（zh/en）；`tick` 可中途切语言；`get_agent` 返回双语档案字段 |
 | `src/truman_director/engine.py` | **唯一 LLM 调用点**：`decide`（tick 决策）+ `narrate`（日终故事）+ `day_close`；`_sample_json`（json_schema + 纠正式重试 + 形状校验）；`_extract_json`（think/fence/brace 剥离，路径进取证日志）；`localized_view`（按 world.lang 单语言投影喂模型）；`MAX_TOKENS=4096`/`NARRATE_MAX_TOKENS=3072` |
 | `src/truman_director/state.py` | `WorldState`（含 `lang`/`day`/`stories`）+ 双向序列化 + `apply_event`/`record_event`/`advance_tick`；Location.name_zh、Agent.name_zh/occupation_zh/goal_en |
 | `src/truman_director/scenarios.py` | `cafe_town` 双语场景 + `DRAMATIC_OPENINGS`（title/hint/event 各有 `_en` 镜像）+ `build_from_spec` 校验 |
@@ -103,7 +109,7 @@ bundle/app.js → world/get_snapshot → storage.get(scope=tool)（读取已保�
 
 ## 发布（概要）
 
-完整流程/状态机/checklist 见 `docs/PUBLISH.md`。发布顺序是：目标版本和四平台 `binary_artifacts` 路径先写入 git → tag 触发四平台构建 → Release 资产完整性门禁 → 下载四个归档到 `dist-release/v<version>/` → `apps push` → `executa publish` 直传并冻结 ExecutaVersion → **真实 Windows Agent 安装 + App 开镇/tick** → `apps cut`。禁止使用会在服务端丢失 Windows/Intel macOS 的 `binary_urls` pull-mirror。只看到 GitHub 资产或当前 Executa 记录不算通过，必须验证冻结快照。Marketplace 截图从 v0.4.5 起追加到同一个版本 Release；任何仍被 `app.json`/平台元数据引用的旧截图 Release 不得删除。`pending_review` 下不要重复 submit，cut 后必须回读审核候选。
+完整流程/状态机/checklist 见 `docs/PUBLISH.md`；当前证据状态见 `docs/RELEASE-STATUS.md`。发布顺序是：目标版本和四平台 `binary_artifacts` 路径先写入 git → tag 触发四平台构建 → Release 资产完整性门禁 → 下载四个归档到 `dist-release/v<version>/` → `apps push` → `executa publish` 直传并冻结 ExecutaVersion → 回读 Executa 冻结快照 → `apps cut` → 安装该 cut 并回读实际 App/Executa/Agent 版本 → **目标 Agent 开镇/tick/真实 APS 恢复验收** → 提审 → 批准后 release。禁止使用会在服务端丢失 Windows/Intel macOS 的 `binary_urls` pull-mirror。只看到 GitHub 资产或当前 Executa 记录不算通过，必须验证冻结快照。Marketplace 截图从 v0.4.5 起追加到同一个版本 Release；任何仍被 `app.json`/平台元数据引用的旧截图 Release 不得删除。`pending_review` 下 cut 不自动移动审核候选；需要切换到已验收的新 cut 时显式 submit-review，再回读确认（官方文档详细规则见 PUBLISH.md）。
 
 ## Git 与提交
 
@@ -137,5 +143,5 @@ bash scripts/package_binary.sh           # 本地 PyInstaller 打包（单平台
 6. call API 把 error code 抹成 `tool_failed`，业务 code 只剩 message 前缀——客户端解析前缀。
 7. dev 存储按 session 隔离；stale session 报 `unknown session_id`。
 8. Matrix Agent 必须在线（dev harness 本地直连会掩盖此问题）。
-9. ExecutaVersion 是不可变快照：后来补 `windows-x86_64` 不会修复已冻结版本；Windows 真机安装失败时必须发新的 patch 版本，禁止继续 App cut/release。
+9. ExecutaVersion 是不可变快照：后来补 `windows-x86_64` 不会修复已冻结版本；若冻结快照本身缺平台，须修正并发布新 patch；新快照完整性核对后可 cut 以生成正确安装引用，目标 cut 真机门禁失败时禁止提审/release。
 10. Executa Hub 的 Install 页面在 `defaultAgentClientId` 为空时可能误选 `agents[0]`（实测落到 Cloud）；Network 中的 `/agents/<client_id>/plugins/reinstall` 才是实际目标证据。

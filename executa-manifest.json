@@ -1,6 +1,6 @@
 {
   "display_name": "Truman Director",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "LLM-directed tick-based town simulator.",
   "author": "Anna Hackathon Team",
   "license": "MIT",

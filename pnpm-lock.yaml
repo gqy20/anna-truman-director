@@ -9,19 +9,19 @@ importers:
   .:
     devDependencies:
       '@anna-ai/cli':
-        specifier: ^0.1.52
-        version: 0.1.52
+        specifier: 0.1.53
+        version: 0.1.53
 
 packages:
 
-  '@anna-ai/app-runtime@0.16.0':
-    resolution: {integrity: sha512-JyoA1RCU6zJ2iH498V9bIv4d+mtJUO23mCk9TrvSMxMgjHX7gZp60Ex7bCqf/fTNgwNo0lh4FYyEAThYpx/N1Q==}
+  '@anna-ai/app-runtime@0.16.1':
+    resolution: {integrity: sha512-Y3NJQ21U5dRPTCEX8EL3Yg/Z+ywXu1mXu9jSmCgmY2vtiO00Ol4z6WftI+6AUI4FMWXa3YV5mQdYbA0rS9iX3w==}
 
   '@anna-ai/app-schema@0.22.0':
     resolution: {integrity: sha512-ooNUittX+8lVhudHhfgJdDry5MPEJsZNcNAB+FWmyFeCEW+G/MOesfRqvR2o9aE4cr/671Eo8yl6bLVqmg42nA==}
 
-  '@anna-ai/cli@0.1.52':
-    resolution: {integrity: sha512-pDeVpqrzcJXBu1rkczXNSmcvL8eseSXBMNAiIpu/4+RfSUceojkmKXhzuBbloba5WH5yAJwllcLhetAxRxhfIQ==}
+  '@anna-ai/cli@0.1.53':
+    resolution: {integrity: sha512-u51rBpjjtUgnfM/Hyng5FwhojpPAkUd9UY4UjfVBg0j8ASjXHSGV4W1G/UCxyOi/mg3QzW0AA2LdOMz5SV1wyw==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -75,13 +75,13 @@ packages:
 
 snapshots:
 
-  '@anna-ai/app-runtime@0.16.0': {}
+  '@anna-ai/app-runtime@0.16.1': {}
 
   '@anna-ai/app-schema@0.22.0': {}
 
-  '@anna-ai/cli@0.1.52':
+  '@anna-ai/cli@0.1.53':
     dependencies:
-      '@anna-ai/app-runtime': 0.16.0
+      '@anna-ai/app-runtime': 0.16.1
       '@anna-ai/app-schema': 0.22.0
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)

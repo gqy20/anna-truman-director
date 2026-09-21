@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 // The Python Executa configures its own stdio streams, but anna-app dev starts
 // a Python bridge before the plugin exists. On zh-CN Windows that bridge would
@@ -9,21 +10,17 @@ const env = {
   PYTHONIOENCODING: "utf-8",
 };
 
-const cliArgs = ["exec", "anna-app", "dev", "--executa", "dir=.", ...process.argv.slice(2)];
-const pnpmCli = process.env.npm_execpath;
-
-const child = pnpmCli
-  ? spawn(process.execPath, [pnpmCli, ...cliArgs], {
-      env,
-      stdio: "inherit",
-      windowsHide: true,
-    })
-  : spawn(process.platform === "win32" ? "pnpm.cmd" : "pnpm", cliArgs, {
-      env,
-      stdio: "inherit",
-      windowsHide: true,
-      shell: process.platform === "win32",
-    });
+// pnpm can preserve the command separator; Commander must receive the flags.
+const forwardedArgs = process.argv.slice(2);
+if (forwardedArgs[0] === "--") forwardedArgs.shift();
+// Always use the project-pinned CLI, also for direct `node scripts/dev.mjs`.
+// Passing an argv array directly avoids Windows .cmd shell quoting problems.
+const cli = fileURLToPath(import.meta.resolve("@anna-ai/cli"));
+const child = spawn(process.execPath, [cli, "dev", "--executa", "dir=.", ...forwardedArgs], {
+  env,
+  stdio: "inherit",
+  windowsHide: true,
+});
 
 child.once("error", (error) => {
   console.error(`Failed to start anna-app dev: ${error.message}`);
