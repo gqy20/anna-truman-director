@@ -1,11 +1,11 @@
 # 发布状态与环境核对
 
-最后核对：2026-09-20。这里区分线上回读、历史记录和待验证事项。
+最后核对：2026-09-21。这里区分线上回读、历史记录和待验证事项。
 发布步骤仅维护在 [PUBLISH.md](PUBLISH.md)，历史功能证据见 [REVIEW-FEEDBACK.md](REVIEW-FEEDBACK.md)。
 
 ## 当前结论
 
-GitHub代码基线为 v0.4.8（7b68e4e），本次工作树修正尚未提交到Git。9月20日已将App修正push到工作草稿r11并cut为App0.4.9（835），未提审或正式上架；冻结工具仍为未改动的0.4.8（478）。
+当前引擎发行标签为 truman-director-v0.4.9，代码提交0a5f0cf；四平台构建、GitHub Release和平台直传冻结均完成。Executa0.4.9（512）已绑定到新App0.4.10（840）。Cloud运行0.4.9通过连续tick和刷新恢复；实际安装仍为working draft，owner install仍选旧latest0.3.3，因此未提审或正式上架。下表为此前基线，最新证据见本文末尾2026-09-21发布段。
 GitHub 四平台资产完整不等于 Marketplace 上架完成。
 
 | 项目 | 证据与边界 |
@@ -209,3 +209,19 @@ CLI 0.1.53 官方声明为兼容升级；最新公告包含 Cloud 唤醒、权�
 - 验证：全量118项pytest通过；ruff check通过，修改的Python文件已格式化。
 - 范围：修复仅在本地源代码；未提交、推送、重建发行二进制或部署Cloud。现有Cloud0.4.8仍含旧缺陷，当前APS的t004未回写修改；App旧pin问题未解决。
 - 限制：若APS写入成功但响应丢失，远程结果不确定，当前修复不承诺分布式exactly-once；需要另行设计幂等确认，不能把本地状态隔离当成网络事务保证。
+
+## Executa0.4.9 / App0.4.10 发布与验收（2026-09-21）
+
+- 用户授权后，提交并推送main及tag `truman-director-v0.4.9`；提交 `0a5f0cf3f075df8eab1a7e3e12a0b71d4d6c86f3`，Actions run35551749121四平台及Release全部成功。四归档与SHA256旁文件完整，下载哈希逐一匹配；未包含无关`.zcode/`。
+- 发布前118项pytest、2项前端测试、ruff格式及lint、manifest校验通过；源码和实际Windows发行二进制的mock协议E2E均通过。
+- apps push生成r12；executa publish直传并冻结ExecutaVersion512/v0.4.9。首轮上传长时间未返回，停止后官方续传确认前三平台已收到，补齐Windows并finalize成功。
+- 从官方Executa页面源码发现真实冻结详情入口：`GET /api/v1/executas/{tool_id}/versions/{version}`。回读0.4.9的binary_urls_snapshot，四平台哈希与下载归档逐一一致；这次验证的是冻结快照，不是当前工具详情。
+- apps cut生成AppVersion840/v0.4.10，frozen_executas明确绑定1013→512/v0.4.9；bundle794。
+- 官方owner install仍返回installed_version=0.3.3，而不是840。平台文档未提供任意cut安装入口，未猜测管理接口、未改latest或绕过审核release，未submit-review。
+- 备份当前t004世界和权限后，仅删除本账号App安装关系，唤醒Cloud580并明确部署UE11978，返回installed=true、loaded=true、version=0.4.9；再恢复working draft。该组合仅供临时测试，不能等同正式cut验收，也不能保证Repair/reinstall后仍选512。
+- 临时实际主模型切DeepSeek：Cloud两次单tick分别从t004→t005→t006（08:30），真实APS读回t006；刷新Dashboard后恢复同一时间及事件。结束回读Cloud0.4.9 loaded/running=true，权限satisfied=true。权限对象比较仅有工具manifest显示字段差异，App配置和工具custom_config未改变。
+- Windows发行二进制在隔离内存存储下使用App82开发会话与真实DeepSeek，完成init→23:55 tick→00:00 tick+narrate→get_agent/get_story；返回实际模型byok:deepseek/deepseek-v4-flash。该项不是Cloud午夜或真实APS写入测试，未覆盖用户已有世界。
+- 测试结束恢复MiniMax-M3主模型，保留BYOK开关；用户世界保留t006。未reset、未回写旧备份、未删除任何App版本。
+- 尚未完成：immutable App840安装、Cloud故障注入后重试、Cloud午夜及进程重启恢复、其他桌面Agent完整验收。先由平台解决旧安装指针，再进行目标cut验收、提审及批准后release。
+
+证据在仓库外mail的2026-09-21-v049-artifacts / executa-publish / frozen-snapshot / cloud-deploy / runtime-smoke及v0410-push / cut / owner-install JSON；GitHub构建：https://github.com/gqy20/anna-truman-director/actions/runs/35551749121 。
