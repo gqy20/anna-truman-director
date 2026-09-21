@@ -5,7 +5,7 @@
 
 ## 当前结论
 
-当前引擎发行标签为 truman-director-v0.4.9，代码提交0a5f0cf；四平台构建、GitHub Release和平台直传冻结均完成。Executa0.4.9（512）已绑定到新App0.4.10（840）。Cloud运行0.4.9通过连续tick和刷新恢复；实际安装仍为working draft，owner install仍选旧latest0.3.3，因此未提审或正式上架。下表为此前基线，最新证据见本文末尾2026-09-21发布段。
+当前引擎发行标签为 truman-director-v0.4.9，代码提交0a5f0cf；四平台构建、GitHub Release和平台直传冻结均完成。Executa0.4.9（512）已绑定到新App0.4.10（840）。Cloud运行0.4.9通过连续tick和刷新恢复。2026-09-21 02:06 UTC回读：App已进入pending_review，审核候选明确为0.4.10，尚未批准或正式上架。开发者owner install选择旧latest的问题与剩余测试边界仍保留，但不再作为阻止提审的额外条件。下表及过程段为此前记录，当前状态以本文末尾为准。
 GitHub 四平台资产完整不等于 Marketplace 上架完成。
 
 | 项目 | 证据与边界 |
@@ -225,3 +225,7 @@ CLI 0.1.53 官方声明为兼容升级；最新公告包含 Cloud 唤醒、权�
 - 尚未完成：immutable App840安装、Cloud故障注入后重试、Cloud午夜及进程重启恢复、其他桌面Agent完整验收。先由平台解决旧安装指针，再进行目标cut验收、提审及批准后release。
 
 证据在仓库外mail的2026-09-21-v049-artifacts / executa-publish / frozen-snapshot / cloud-deploy / runtime-smoke及v0410-push / cut / owner-install JSON；GitHub构建：https://github.com/gqy20/anna-truman-director/actions/runs/35551749121 。
+
+## App0.4.10已提交审核（2026-09-21 02:06 UTC）
+
+用户要求验证完成后继续发布；重新核对官方发布文档§2，submit-review固定最新cut为review candidate，审核安装按候选解析。此前将owner install旧latest问题视为提审前必须解决的条件过严，已纠正发布约定。通过官方CLI runAppsSubmitReview提交成功，独立GET回读status=pending_review、review_candidate_version=0.4.10。候选840的bundle_ready、required_executas精确0.4.9均确认，latest仍0.3.3。未夸大为App840已完成开发者安装验收，也未绕过审核执行release。批准后可正式发布同一候选；本次没有创建自动轮询或发送额外论坛/邮件。证据：mail/2026-09-21-v0410-review-submitted.json。

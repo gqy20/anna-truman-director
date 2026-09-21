@@ -1,6 +1,8 @@
 # 发布流程(World Director / Local)
 
 > 当前证据以 [RELEASE-STATUS.md](RELEASE-STATUS.md) 为准。本文维护操作流程，不把历史草稿、GitHub Release 或已提审写成正式上架。
+
+> **2026-09-21 流程纠正（优先于本文较早的安装门禁表述）**：本地及实际Agent运行验证、冻结绑定与bundle核验通过后，应推进submit-review。开发者owner install选旧latest，不单独作为无限期阻止提审的条件；需如实保留安装与测试边界。官方submit-review会对最新cut执行预检并固定审核候选，审核方按候选安装。App0.4.10已通过提交预检并进入pending_review，绑定Executa0.4.9。只有APPROVED/PUBLISHED才执行正式release；提审成功不等于上架成功。
 >
 > 顺序：四平台构建 → apps push → executa publish → 回读冻结快照 → apps cut → 安装目标 cut 并验收 → submit-review → 审核批准 → release。cut 用于生成安装引用，不代表通过运行门禁。门禁失败时停止提审/上架。
 
